@@ -18,6 +18,7 @@ const selectors: VirtualListSelectors = {
 describe("Projects virtual infinite scroll", () => {
   beforeEach(() => {
     cy.viewport(1280, 900);
+    cy.clearLocalStorage("fptclaw.custom-projects.v1");
     cy.visit("/projects");
     cy.get(selectors.scroller).should("be.visible");
   });
@@ -42,16 +43,61 @@ describe("Projects virtual infinite scroll", () => {
   });
 
   it("updates the visible virtual window while scrolling", () => {
-    cy.get(selectors.row).first().should("contain.text", "001");
+    let firstRowText = "";
+
+    cy.get(selectors.row)
+      .first()
+      .invoke("text")
+      .then((text) => {
+        firstRowText = text;
+      });
 
     cy.get(selectors.scroller).scrollTo(0, 1800, { duration: 0 });
 
-    cy.get(selectors.row).first().should("not.contain.text", "001");
+    cy.get(selectors.row)
+      .first()
+      .invoke("text")
+      .should((text) => {
+        expect(text).not.to.eq(firstRowText);
+      });
     cy.get(selectors.scroller).its("0.scrollTop").should("be.greaterThan", 0);
     getRenderedCount(selectors).then((count) => {
       cy.get(selectors.row).should("have.length", count);
       expect(count).to.be.lessThan(40);
     });
+  });
+
+  it("keeps compact project rows separated on mobile", () => {
+    cy.viewport(390, 844);
+    cy.visit("/projects");
+
+    cy.get(selectors.row).then(($rows) => {
+      const rects = [...$rows].map((row) => row.getBoundingClientRect());
+
+      rects.slice(1).forEach((rect, index) => {
+        expect(
+          rect.top,
+          `project row ${index + 1} does not overlap the previous row`,
+        ).to.be.gte(rects[index].bottom);
+      });
+    });
+  });
+
+  it("filters projects and opens a focused row with the keyboard", () => {
+    cy.get('[data-testid="projects-search"]').type("proposal automation 002");
+    cy.get(selectors.row).should("have.length", 1);
+    cy.get(selectors.row).first().should("contain.text", "Proposal Automation");
+
+    cy.get(selectors.row).first().focus().type("{enter}");
+
+    cy.location("pathname").should("eq", "/projects/2");
+  });
+
+  it("shows an empty state when project filters have no results", () => {
+    cy.get('[data-testid="projects-search"]').type("not-a-real-project");
+
+    cy.contains("No projects match the current filters.").should("be.visible");
+    cy.get(selectors.row).should("not.exist");
   });
 
   it("lazy loads the next page after scrolling past 75 percent", () => {
@@ -74,5 +120,23 @@ describe("Projects virtual infinite scroll", () => {
       expect(count).to.be.lessThan(40);
       cy.get(selectors.row).should("have.length", count);
     });
+  });
+
+  it("creates a project from a folder path and opens project detail", () => {
+    cy.get('[data-testid="project-create-open"]').click();
+
+    cy.get('[data-testid="project-create-path"]').type(
+      "D:\\Projects\\FPTClaw",
+      { parseSpecialCharSequences: false },
+    );
+    cy.get('[data-testid="project-create-name"]').should(
+      "have.value",
+      "FPTClaw",
+    );
+    cy.get('[data-testid="project-create-submit"]').click();
+
+    cy.location("pathname").should("eq", "/projects/1001");
+    cy.contains("h1", "FPTClaw").should("be.visible");
+    cy.contains("D:\\Projects\\FPTClaw").should("be.visible");
   });
 });

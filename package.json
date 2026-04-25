@@ -1,9 +1,10 @@
 {
-  "name": "MyShell",
+  "name": "FPTClaw",
   "private": true,
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "bun run --cwd apps/shell desktop:dev",
+    "dev:turbo": "turbo run dev",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"

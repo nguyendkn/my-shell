@@ -2,8 +2,8 @@ import type { ElectrobunConfig } from "electrobun";
 
 export default {
   app: {
-    name: "MyShell",
-    identifier: "dev.myshell.shell",
+    name: "FPTClaw",
+    identifier: "dev.fptclaw.agent",
     version: "0.0.0",
   },
   runtime: {
@@ -11,7 +11,7 @@ export default {
   },
   build: {
     bun: {
-      entrypoint: "src/electrobun/main.ts",
+      entrypoint: "src/electrobun/index.ts",
     },
     copy: {
       dist: "views/shell",

@@ -148,7 +148,7 @@ export function AppSidebar({
   ...props
 }: AppSidebarProps) {
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
+    <Sidebar collapsible="offcanvas" data-testid="app-sidebar" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -158,7 +158,7 @@ export function AppSidebar({
             >
               <a href="#">
                 <TerminalIcon className="size-5!" />
-                <span className="text-base font-semibold">SHELL HERE</span>
+                <span className="text-base font-semibold">FPTClaw Agent</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -168,7 +168,10 @@ export function AppSidebar({
         <NavMain
           items={data.navMain.map((item) => ({
             ...item,
-            isActive: currentPath === item.url,
+            isActive:
+              currentPath === item.url ||
+              (item.url === "/projects" &&
+                currentPath.startsWith("/projects/")),
             onSelect: onNavigate,
           }))}
         />

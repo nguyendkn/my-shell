@@ -22,12 +22,12 @@
       "cache": false,
       "env": ["CYPRESS_BASE_URL"]
     },
-    "shell#cy:open": {
+    "fptclaw-agent#cy:open": {
       "cache": false,
       "persistent": true,
       "env": ["CYPRESS_BASE_URL"]
     },
-    "shell#cy:run": {
+    "fptclaw-agent#cy:run": {
       "cache": false,
       "env": ["CYPRESS_BASE_URL"]
     },

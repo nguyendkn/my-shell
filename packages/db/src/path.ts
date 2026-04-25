@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
-const DEFAULT_APP_NAME = "MyShell";
-const DEFAULT_DB_FILE_NAME = "myshell.sqlite";
+const DEFAULT_APP_NAME = "FPTClaw";
+const DEFAULT_DB_FILE_NAME = "fptclaw.sqlite";
 
 export type DatabasePathOptions = {
   appName?: string;
@@ -22,14 +22,16 @@ function getDataHome() {
 
   return (
     process.env.XDG_DATA_HOME ??
-    (process.env.HOME ? join(process.env.HOME, ".local", "share") : process.cwd())
+    (process.env.HOME
+      ? join(process.env.HOME, ".local", "share")
+      : process.cwd())
   );
 }
 
 export function getDatabasePath(options: DatabasePathOptions = {}) {
   const override =
     options.databasePath ??
-    process.env.MYSHELL_DB_PATH?.trim() ??
+    process.env.FPTCLAW_DB_PATH?.trim() ??
     process.env.DATABASE_PATH?.trim();
 
   if (override) {
@@ -37,9 +39,11 @@ export function getDatabasePath(options: DatabasePathOptions = {}) {
   }
 
   const appName =
-    options.appName ?? process.env.MYSHELL_DB_APP_NAME ?? DEFAULT_APP_NAME;
+    options.appName ?? process.env.FPTCLAW_DB_APP_NAME ?? DEFAULT_APP_NAME;
   const fileName =
-    options.fileName ?? process.env.MYSHELL_DB_FILE_NAME ?? DEFAULT_DB_FILE_NAME;
+    options.fileName ??
+    process.env.FPTCLAW_DB_FILE_NAME ??
+    DEFAULT_DB_FILE_NAME;
 
   return join(getDataHome(), appName, fileName);
 }

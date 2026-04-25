@@ -6,6 +6,7 @@ export type Project = {
   name: string;
   description: string;
   owner: string;
+  folderPath?: string;
   status: ProjectStatus;
   priority: ProjectPriority;
   progress: number;
@@ -15,7 +16,7 @@ export type Project = {
 };
 
 const projectNames = [
-  "Shell Workspace",
+  "FPTClaw Workspace",
   "Proposal Automation",
   "Document Intelligence",
   "Client Portal",
