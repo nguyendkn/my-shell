@@ -1,0 +1,12 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "types": ["cypress", "node"],
+    "verbatimModuleSyntax": true,
+    "strictNullChecks": true
+  },
+  "include": ["src", "bin"]
+}

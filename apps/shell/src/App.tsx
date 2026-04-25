@@ -5,16 +5,9 @@ import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar";
 import { SiteHeader } from "./components/site-header";
 import { AppSidebar } from "./components/app-sidebar";
-import {
-  lazy,
-  Suspense,
-  useEffect,
-  useState,
-  type CSSProperties,
-} from "react";
+import { lazy, Suspense, useEffect, useState, type CSSProperties } from "react";
 import { ProjectsPage } from "./pages/projects-page";
 
-const DEFAULT_SIDEBAR_WIDTH = 288;
 const DashboardPage = lazy(() => import("./pages/dashboard-page"));
 
 function getRoutePath() {
@@ -52,7 +45,6 @@ function useAppRoute() {
 }
 
 function App() {
-  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
   const { currentPath, navigate } = useAppRoute();
   const headerTitle = currentPath === "/dashboard" ? "Dashboard" : "Projects";
 
@@ -66,9 +58,10 @@ function App() {
       <TooltipProvider>
         <>
           <SidebarProvider
+            className="h-svh overflow-hidden"
             style={
               {
-                "--sidebar-width": `${sidebarWidth}px`,
+                "--sidebar-width": "calc(var(--spacing) * 72)",
                 "--header-height": "calc(var(--spacing) * 12)",
               } as CSSProperties
             }
@@ -76,14 +69,12 @@ function App() {
             <AppSidebar
               currentPath={currentPath}
               variant="inset"
-              width={sidebarWidth}
               onNavigate={navigate}
-              onWidthChange={setSidebarWidth}
             />
-            <SidebarInset>
+            <SidebarInset className="h-svh min-h-0 overflow-hidden">
               <SiteHeader title={headerTitle} />
-              <div className="flex min-h-0 flex-1 flex-col">
-                <div className="@container/main flex min-h-0 flex-1 flex-col gap-2">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <div className="@container/main flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
                   {currentPath === "/dashboard" ? (
                     <Suspense
                       fallback={

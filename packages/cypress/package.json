@@ -1,0 +1,27 @@
+{
+  "name": "@repo/cypress",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
+    "./virtual-list": "./src/virtual-list.ts"
+  },
+  "bin": {
+    "repo-cypress": "./bin/repo-cypress.mjs"
+  },
+  "scripts": {
+    "cy:open": "cypress open",
+    "cy:run": "cypress run",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "cypress": "15.14.1"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "*",
+    "@types/node": "^22.15.3",
+    "typescript": "5.9.2"
+  }
+}

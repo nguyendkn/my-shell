@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "cy:open": "repo-cypress open",
+    "cy:run": "repo-cypress run",
     "desktop:dev": "bun run scripts/electrobun.ts dev",
     "desktop:dev:watch": "bun run scripts/electrobun.ts dev --watch",
     "desktop:run": "bun run scripts/electrobun.ts run",
@@ -17,6 +19,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@repo/db": "*",
     "@repo/ui": "*",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/modifiers": "^9.0.0",
@@ -33,6 +36,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@repo/cypress": "*",
     "@repo/eslint-config": "*",
     "@repo/typescript-config": "*",
     "@tailwindcss/postcss": "^4.2.4",

@@ -7,7 +7,12 @@ export default [
     ignores: ["build/**"],
   },
   {
-    files: ["electrobun.config.ts", "scripts/**/*.ts", "src/electrobun/**/*.ts"],
+    files: [
+      "drizzle.config.ts",
+      "electrobun.config.ts",
+      "scripts/**/*.ts",
+      "src/electrobun/**/*.ts",
+    ],
     languageOptions: {
       globals: {
         Bun: "readonly",

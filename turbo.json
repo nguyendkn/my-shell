@@ -13,6 +13,24 @@
     "check-types": {
       "dependsOn": ["^check-types"]
     },
+    "@repo/cypress#cy:open": {
+      "cache": false,
+      "persistent": true,
+      "env": ["CYPRESS_BASE_URL"]
+    },
+    "@repo/cypress#cy:run": {
+      "cache": false,
+      "env": ["CYPRESS_BASE_URL"]
+    },
+    "shell#cy:open": {
+      "cache": false,
+      "persistent": true,
+      "env": ["CYPRESS_BASE_URL"]
+    },
+    "shell#cy:run": {
+      "cache": false,
+      "env": ["CYPRESS_BASE_URL"]
+    },
     "dev": {
       "cache": false,
       "persistent": true
