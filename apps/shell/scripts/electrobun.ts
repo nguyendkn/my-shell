@@ -4,6 +4,14 @@ import path from "node:path";
 
 const env = { ...process.env };
 const args = process.argv.slice(2);
+const workspaceRoot = path.resolve(import.meta.dir, "../../..");
+
+env.FPTCLAW_WORKSPACE_ROOT ??= workspaceRoot;
+env.FPTCLAW_RUNTIME_ROOT ??= path.join(workspaceRoot, "packages/runtime");
+env.FPTCLAW_RUNTIME_TRACE_FILE ??= path.join(
+  workspaceRoot,
+  "apps/shell/logs/runtime-bridge.log",
+);
 
 if (process.platform === "win32") {
   const systemRoot = env.SystemRoot ?? "C:\\Windows";

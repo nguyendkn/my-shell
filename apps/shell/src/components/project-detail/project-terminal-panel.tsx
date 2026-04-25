@@ -1,5 +1,5 @@
 import * as React from "react";
-import { TerminalSquareIcon, XIcon } from "lucide-react";
+import { Minimize2Icon, TerminalSquareIcon, XIcon } from "lucide-react";
 
 import { Button } from "@repo/ui/components/button";
 import { Terminal } from "@repo/ui/components/terminal";
@@ -19,6 +19,8 @@ type ProjectTerminalSession = {
 
 export type ProjectTerminalPanelProps = {
   detail: ProjectDetail;
+  isFullscreen?: boolean;
+  onFullscreenChange?: (isFullscreen: boolean) => void;
 };
 
 export type ProjectTerminalPanelHandle = {
@@ -128,7 +130,10 @@ function TerminalPane({
 export const ProjectTerminalPanel = React.forwardRef<
   ProjectTerminalPanelHandle,
   ProjectTerminalPanelProps
->(function ProjectTerminalPanel({ detail }, ref) {
+>(function ProjectTerminalPanel(
+  { detail, isFullscreen = false, onFullscreenChange },
+  ref,
+) {
   const [terminalIndex, setTerminalIndex] = React.useState(1);
   const [sessions, setSessions] = React.useState<ProjectTerminalSession[]>(
     () => [createTerminalSession(1, detail)],
@@ -160,6 +165,22 @@ export const ProjectTerminalPanel = React.forwardRef<
     [splitTerminal],
   );
 
+  React.useEffect(() => {
+    if (!isFullscreen) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onFullscreenChange?.(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFullscreen, onFullscreenChange]);
+
   function closeTerminal(sessionId: string) {
     setSessions((currentSessions) => {
       if (currentSessions.length <= 1) {
@@ -180,12 +201,41 @@ export const ProjectTerminalPanel = React.forwardRef<
 
   return (
     <section
-      className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background"
+      className={cn(
+        "flex min-h-0 flex-1 flex-col overflow-hidden bg-background",
+        isFullscreen && "fixed inset-0 z-50",
+      )}
       data-testid="project-terminal-panel"
       data-terminal-count={sessions.length}
+      data-fullscreen={isFullscreen ? "true" : "false"}
     >
+      {isFullscreen ? (
+        <div
+          className="flex h-11 shrink-0 items-center gap-2 border-b bg-background px-3"
+          data-testid="project-terminal-fullscreen-header"
+        >
+          <TerminalSquareIcon className="size-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-sm font-medium">Terminal</h2>
+          </div>
+          <BadgeLikeCount count={sessions.length} />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onFullscreenChange?.(false)}
+            data-testid="project-terminal-exit-fullscreen"
+          >
+            <Minimize2Icon />
+            Exit
+          </Button>
+        </div>
+      ) : null}
       <div
-        className="flex min-h-0 flex-1 overflow-hidden px-2 pb-4 pt-2"
+        className={cn(
+          "flex min-h-0 flex-1 overflow-hidden",
+          isFullscreen ? "p-2" : "px-2 pb-4 pt-2",
+        )}
         data-testid="project-terminal-split-view"
       >
         {sessions.map((session, index) => (
@@ -204,3 +254,14 @@ export const ProjectTerminalPanel = React.forwardRef<
     </section>
   );
 });
+
+function BadgeLikeCount({ count }: { count: number }) {
+  return (
+    <div
+      className="hidden shrink-0 rounded-md border bg-muted/40 px-2 py-1 text-xs text-muted-foreground sm:block"
+      data-testid="project-terminal-fullscreen-count"
+    >
+      {count} {count === 1 ? "terminal" : "terminals"}
+    </div>
+  );
+}

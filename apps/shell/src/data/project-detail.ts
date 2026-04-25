@@ -9,6 +9,17 @@ export type ProjectChatMessageKind =
 
 export type ProjectChatMessageRole = "assistant" | "system" | "user";
 
+export type ProjectChatMessageAction =
+  | string
+  | {
+      id: string;
+      label: string;
+      variant?: "default" | "outline" | "secondary" | "ghost" | "destructive";
+      disabled?: boolean;
+      pending?: boolean;
+      title?: string;
+    };
+
 export type ProjectChatMessage = {
   id: string;
   role: ProjectChatMessageRole;
@@ -16,9 +27,13 @@ export type ProjectChatMessage = {
   title?: string;
   body: string;
   time: string;
-  status?: "complete" | "pending" | "running";
+  status?: "complete" | "pending" | "running" | "failed" | "canceled";
   files?: string[];
-  actions?: string[];
+  actions?: ProjectChatMessageAction[];
+  runtimeSessionId?: string;
+  runtimeTurnId?: string;
+  runtimePermissionRequestId?: string;
+  runtimePermissionToolName?: string;
 };
 
 export type ProjectResource = {
@@ -143,6 +158,67 @@ export type ProjectGitState = {
   commitMessage: string;
 };
 
+export type ProjectBrowserProviderId = "camoufox" | "chrome-cdp";
+
+export type ProjectBrowserProviderStatus = "ready" | "planned";
+
+export type ProjectBrowserProvider = {
+  id: ProjectBrowserProviderId;
+  name: string;
+  engine: string;
+  transport: string;
+  status: ProjectBrowserProviderStatus;
+  setupCommand: string;
+  description: string;
+  capabilities: string[];
+  constraints: string[];
+};
+
+export type ProjectBrowserProfileStatus =
+  | "ready"
+  | "warming"
+  | "running"
+  | "needs-setup";
+
+export type ProjectBrowserProfile = {
+  id: string;
+  name: string;
+  providerId: ProjectBrowserProviderId;
+  status: ProjectBrowserProfileStatus;
+  profilePath: string;
+  proxyLane: string;
+  locale: string;
+  timezone: string;
+  os: "windows" | "macos" | "linux";
+  headless: "headed" | "headless" | "virtual";
+  persistentContext: boolean;
+  harnessMode: "playwright" | "cdp";
+  endpoint: string;
+  lastUsed: string;
+  health: number;
+  cookieJar: string;
+  targetDomains: string[];
+  tags: string[];
+  notes: string;
+};
+
+export type ProjectBrowserHarnessState = {
+  agent: "Hermes Agent";
+  outcome: "Local AGI";
+  skillRoot: string;
+  helperPolicy: string;
+  domainSkills: number;
+  cdpUrl: string | null;
+  notes: string[];
+};
+
+export type ProjectBrowserState = {
+  defaultProviderId: ProjectBrowserProviderId;
+  providers: ProjectBrowserProvider[];
+  profiles: ProjectBrowserProfile[];
+  harness: ProjectBrowserHarnessState;
+};
+
 export type ProjectDetail = {
   project: Project;
   activeTask: string;
@@ -158,6 +234,7 @@ export type ProjectDetail = {
   files: ProjectFileState;
   timeline: ProjectTimelineItem[];
   git: ProjectGitState;
+  browser: ProjectBrowserState;
 };
 
 const modelNames = [
@@ -721,6 +798,141 @@ export function getProjectDetail(projectId: number): ProjectDetail | null {
   };
 }
 
+function makeBrowserState(project: Project): ProjectBrowserState {
+  const projectRoot = getProjectRoot(project).replace(/\\/g, "/");
+  const paddedId = String(project.id).padStart(3, "0");
+  const baseProfilePath = `${projectRoot}/.fptclaw/browser-profiles`;
+
+  return {
+    defaultProviderId: "camoufox",
+    providers: [
+      {
+        id: "camoufox",
+        name: "Camoufox",
+        engine: "Firefox anti-detect",
+        transport: "Playwright / Juggler",
+        status: "ready",
+        setupCommand: "pip install -U camoufox[geoip] && camoufox fetch",
+        description:
+          "Fingerprint-rotating browser for headed, persistent local sessions.",
+        capabilities: [
+          "Persistent contexts",
+          "Fingerprint rotation",
+          "GeoIP alignment",
+          "Humanized cursor",
+        ],
+        constraints: [
+          "Python runtime required",
+          "Use proxy, locale, timezone, and WebRTC as one lane",
+        ],
+      },
+      {
+        id: "chrome-cdp",
+        name: "Chrome CDP",
+        engine: "Chrome",
+        transport: "Chrome DevTools Protocol",
+        status: "planned",
+        setupCommand:
+          "chrome --remote-debugging-port=9222 --user-data-dir=<profile>",
+        description:
+          "Raw CDP provider for Browser Harness helpers and live Chrome sessions.",
+        capabilities: [
+          "One websocket",
+          "Real cookies",
+          "Agent-owned helpers",
+          "Domain skills",
+        ],
+        constraints: [
+          "Needs dedicated user-data-dir",
+          "Port must be started before harness attach",
+        ],
+      },
+    ],
+    profiles: [
+      {
+        id: `${project.id}-camoufox-research`,
+        name: "Research lane",
+        providerId: "camoufox",
+        status: "ready",
+        profilePath: `${baseProfilePath}/camoufox/research-${paddedId}`,
+        proxyLane: "Residential US",
+        locale: "en-US",
+        timezone: "America/New_York",
+        os: "windows",
+        headless: "headed",
+        persistentContext: true,
+        harnessMode: "playwright",
+        endpoint: "local Playwright context",
+        lastUsed: "Today 09:41",
+        health: 92,
+        cookieJar: "Warm login cookies",
+        targetDomains: ["github.com", "docs.github.com"],
+        tags: ["Hermes", "browser-harness", "safe-login"],
+        notes:
+          "Primary profile for logged-in research flows and account-bound browsing.",
+      },
+      {
+        id: `${project.id}-camoufox-crm`,
+        name: "CRM operator",
+        providerId: "camoufox",
+        status: "running",
+        profilePath: `${baseProfilePath}/camoufox/crm-${paddedId}`,
+        proxyLane: "Static ISP US",
+        locale: "en-US",
+        timezone: "America/Chicago",
+        os: "windows",
+        headless: "headed",
+        persistentContext: true,
+        harnessMode: "playwright",
+        endpoint: "local Playwright context",
+        lastUsed: "12 min ago",
+        health: 88,
+        cookieJar: "CRM + SSO cookies",
+        targetDomains: ["linkedin.com", "hubspot.com"],
+        tags: ["domain-skill", "crm", "humanized"],
+        notes:
+          "Dedicated account lane for repetitive CRM tasks with stable proxy identity.",
+      },
+      {
+        id: `${project.id}-camoufox-marketplace`,
+        name: "Marketplace checkout",
+        providerId: "camoufox",
+        status: "warming",
+        profilePath: `${baseProfilePath}/camoufox/marketplace-${paddedId}`,
+        proxyLane: "Residential EU",
+        locale: "en-GB",
+        timezone: "Europe/London",
+        os: "macos",
+        headless: "headed",
+        persistentContext: true,
+        harnessMode: "playwright",
+        endpoint: "local Playwright context",
+        lastUsed: "Yesterday",
+        health: 81,
+        cookieJar: "Clean warmup cookies",
+        targetDomains: ["amazon.com", "stripe.com"],
+        tags: ["checkout", "proxy-lane", "warmup"],
+        notes:
+          "Profile kept separate because marketplace flows are sensitive to identity drift.",
+      },
+    ],
+    harness: {
+      agent: "Hermes Agent",
+      outcome: "Local AGI",
+      skillRoot: `${projectRoot}/.fptclaw/browser-skills`,
+      helperPolicy:
+        "Agent may extend helpers only inside project harness scope",
+      domainSkills: 7 + (project.id % 5),
+      cdpUrl: null,
+      notes: [
+        "Camoufox profiles use persistent_context with user_data_dir.",
+        "Chrome CDP profiles will expose ws://localhost:<port> endpoints for raw Browser Harness.",
+        "Keep proxy, locale, timezone, and WebRTC aligned per profile lane.",
+      ],
+    },
+  };
+}
+
 export function getProjectDetail(
   projectId: number,
   projectList: Project[] = projects,
@@ -746,5 +958,6 @@ export function getProjectDetail(
     files: makeFileState(project),
     timeline: makeTimeline(project),
     git: makeGitState(project),
+    browser: makeBrowserState(project),
   };
 }

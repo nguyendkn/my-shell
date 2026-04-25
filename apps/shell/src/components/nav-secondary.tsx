@@ -18,6 +18,8 @@ export function NavSecondary({
     title: string
     url: string
     icon: React.ReactNode
+    isActive?: boolean
+    onSelect?: (url: string) => void
   }[]
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
   return (
@@ -26,8 +28,17 @@ export function NavSecondary({
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild>
-                <a href={item.url}>
+              <SidebarMenuButton asChild isActive={item.isActive} tooltip={item.title}>
+                <a
+                  href={item.url}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    item.onSelect?.(item.url)
+                  }}
+                  data-testid={
+                    item.url === "/settings" ? "app-sidebar-settings" : undefined
+                  }
+                >
                   {item.icon}
                   <span>{item.title}</span>
                 </a>

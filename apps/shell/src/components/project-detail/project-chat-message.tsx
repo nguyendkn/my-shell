@@ -11,10 +11,17 @@ import {
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import { cn } from "@repo/ui/lib/utils";
-import type { ProjectChatMessage } from "../../data/project-detail";
+import type {
+  ProjectChatMessage,
+  ProjectChatMessageAction,
+} from "../../data/project-detail";
 
 type ProjectChatMessageProps = {
   message: ProjectChatMessage;
+  onAction?: (
+    message: ProjectChatMessage,
+    action: ProjectChatMessageAction,
+  ) => void;
 };
 
 function MessageIcon({ message }: ProjectChatMessageProps) {
@@ -52,6 +59,10 @@ function getMessageClass(message: ProjectChatMessage) {
     return "ml-auto max-w-[88%] border-primary/10 bg-primary text-primary-foreground";
   }
 
+  if (message.status === "failed") {
+    return "max-w-[92%] border-destructive/30 bg-destructive/10 text-destructive";
+  }
+
   if (message.kind === "tool" || message.kind === "checkpoint") {
     return "max-w-[92%] border-dashed bg-muted/50";
   }
@@ -67,8 +78,34 @@ function getFileName(path: string) {
   return path.split(/[\\/]/).pop() ?? path;
 }
 
-export function ProjectChatMessage({ message }: ProjectChatMessageProps) {
+function getActionMeta(action: ProjectChatMessageAction, index: number) {
+  if (typeof action === "string") {
+    return {
+      id: `${index}-${action}`,
+      label: action,
+      variant: "secondary" as const,
+      disabled: false,
+      pending: false,
+      title: action,
+    };
+  }
+
+  return {
+    id: action.id,
+    label: action.label,
+    variant: action.variant ?? ("secondary" as const),
+    disabled: Boolean(action.disabled),
+    pending: Boolean(action.pending),
+    title: action.title ?? action.label,
+  };
+}
+
+export function ProjectChatMessage({
+  message,
+  onAction,
+}: ProjectChatMessageProps) {
   const isUser = message.role === "user";
+  const isFailed = message.status === "failed";
 
   return (
     <article
@@ -82,7 +119,9 @@ export function ProjectChatMessage({ message }: ProjectChatMessageProps) {
         <span
           className={cn(
             "mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-md",
-            isUser
+            isFailed
+              ? "bg-destructive/15 text-destructive"
+              : isUser
               ? "bg-primary-foreground/15 text-primary-foreground"
               : "bg-muted text-muted-foreground",
           )}
@@ -97,7 +136,11 @@ export function ProjectChatMessage({ message }: ProjectChatMessageProps) {
             <span
               className={cn(
                 "text-xs",
-                isUser ? "text-primary-foreground/70" : "text-muted-foreground",
+                isFailed
+                  ? "text-destructive/80"
+                  : isUser
+                    ? "text-primary-foreground/70"
+                    : "text-muted-foreground",
               )}
             >
               {message.time}
@@ -143,17 +186,50 @@ export function ProjectChatMessage({ message }: ProjectChatMessageProps) {
           )}
           {message.actions && message.actions.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
-              {message.actions.map((action) => (
-                <Button
-                  key={action}
-                  variant={
-                    message.kind === "question" ? "outline" : "secondary"
-                  }
-                  size="sm"
-                >
-                  {action}
-                </Button>
-              ))}
+              {message.actions.map((action, index) => {
+                const meta = getActionMeta(action, index);
+                const isInteractive = Boolean(onAction) && !meta.disabled;
+
+                if (!isInteractive && !meta.pending) {
+                  return (
+                    <span
+                      key={meta.id}
+                      className={cn(
+                        "inline-flex h-7 max-w-full items-center rounded-md border px-2.5 text-[0.8rem] font-medium",
+                        message.kind === "question"
+                          ? "border-amber-300 bg-amber-100/60 text-amber-950"
+                          : "bg-background text-foreground",
+                      )}
+                      title={meta.title}
+                      data-testid={`project-message-action-${meta.id}`}
+                    >
+                      <span className="truncate">{meta.label}</span>
+                    </span>
+                  );
+                }
+
+                return (
+                  <Button
+                    key={meta.id}
+                    type="button"
+                    variant={
+                      message.kind === "question" && meta.variant === "secondary"
+                        ? "outline"
+                        : meta.variant
+                    }
+                    size="sm"
+                    disabled={meta.disabled}
+                    title={meta.title}
+                    data-testid={`project-message-action-${meta.id}`}
+                    onClick={() => onAction?.(message, action)}
+                  >
+                    {meta.pending && (
+                      <Loader2Icon className="size-3.5 animate-spin" />
+                    )}
+                    <span className="truncate">{meta.label}</span>
+                  </Button>
+                );
+              })}
             </div>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { Utils, type BrowserWindow } from "electrobun/bun";
+import { Screen, Utils, type BrowserWindow } from "electrobun/bun";
 
 type DesktopEvalRequest = {
   code?: unknown;
@@ -71,15 +71,24 @@ export function startDesktopTestServer({
       }
 
       if (request.method === "GET" && url.pathname === "/health") {
+        const primaryDisplay = Screen.getPrimaryDisplay();
+
         return jsonResponse({
           ok: true,
           mode: "desktop",
           domReady: isDomReady,
           port,
           projectFolderPath: projectFolderPath ?? null,
+          display: {
+            id: primaryDisplay.id,
+            bounds: primaryDisplay.bounds,
+            workArea: primaryDisplay.workArea,
+            scaleFactor: primaryDisplay.scaleFactor,
+          },
           window: {
             id: mainWindow.id,
             frame: mainWindow.getFrame(),
+            isMaximized: mainWindow.isMaximized(),
             webviewId: mainWindow.webview.id,
           },
         });
@@ -132,6 +141,13 @@ void (async () => {
     if (!element) {
       throw new Error("Element not found: " + selector);
     }
+    const eventOptions = { bubbles: true, cancelable: true, button: 0 };
+    const PointerEventCtor = window.PointerEvent ?? window.MouseEvent;
+
+    element.dispatchEvent(new PointerEventCtor("pointerdown", eventOptions));
+    element.dispatchEvent(new MouseEvent("mousedown", eventOptions));
+    element.dispatchEvent(new PointerEventCtor("pointerup", eventOptions));
+    element.dispatchEvent(new MouseEvent("mouseup", eventOptions));
     element.click();
     return true;
   };

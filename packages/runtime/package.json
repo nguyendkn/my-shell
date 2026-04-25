@@ -80,7 +80,7 @@
     "ink": "*",
     "jsonc-parser": "*",
     "lodash-es": "*",
-    "lru-cache": "*",
+    "lru-cache": "^11.2.2",
     "marked": "*",
     "modifiers-napi": "file:./shims/modifiers-napi",
     "p-map": "*",

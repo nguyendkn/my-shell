@@ -13,6 +13,16 @@ const defaultProjectFolderPath = path.join(
   "fptclaw-desktop-e2e",
   "selected-project",
 );
+const desktopClaudeConfigDir = path.join(
+  tmpdir(),
+  "fptclaw-desktop-e2e",
+  "claude-config",
+);
+const desktopSettingsWorkspaceRoot = path.join(
+  tmpdir(),
+  "fptclaw-desktop-e2e",
+  "settings-workspace",
+);
 const projectFolderPath =
   process.env.FPTCLAW_TEST_PROJECT_FOLDER_PATH ?? defaultProjectFolderPath;
 
@@ -22,6 +32,10 @@ function createEnv() {
     CYPRESS_SPEC_PATTERN: "cypress/desktop/**/*.cy.ts",
     FPTCLAW_DESKTOP_TEST_PORT: String(desktopTestPort),
     FPTCLAW_TEST_PROJECT_FOLDER_PATH: projectFolderPath,
+    CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR ?? desktopClaudeConfigDir,
+    FPTCLAW_SETTINGS_WORKSPACE_ROOT:
+      process.env.FPTCLAW_SETTINGS_WORKSPACE_ROOT ??
+      desktopSettingsWorkspaceRoot,
   };
 
   if (process.platform === "win32") {
@@ -73,9 +87,26 @@ async function waitForDesktopHealth() {
   while (Date.now() - startedAt < timeoutMs) {
     try {
       const response = await fetch(`${desktopTestBaseUrl}/health`);
-      const body = (await response.json()) as { domReady?: unknown };
+      const body = (await response.json()) as {
+        domReady?: unknown;
+        display?: {
+          workArea?: { x: number; y: number; width: number; height: number };
+        };
+        window?: {
+          frame?: { x: number; y: number; width: number; height: number };
+        };
+      };
+      const workArea = body.display?.workArea;
+      const frame = body.window?.frame;
+      const fitsWorkArea =
+        workArea &&
+        frame &&
+        Math.abs(frame.x - workArea.x) <= 2 &&
+        Math.abs(frame.y - workArea.y) <= 2 &&
+        Math.abs(frame.width - workArea.width) <= 4 &&
+        Math.abs(frame.height - workArea.height) <= 4;
 
-      if (response.ok && body.domReady === true) {
+      if (response.ok && body.domReady === true && fitsWorkArea) {
         return;
       }
     } catch {
@@ -125,6 +156,8 @@ async function shutdownDesktop(processId?: number) {
 }
 
 mkdirSync(projectFolderPath, { recursive: true });
+mkdirSync(desktopClaudeConfigDir, { recursive: true });
+mkdirSync(desktopSettingsWorkspaceRoot, { recursive: true });
 await stopStaleDesktopProcesses();
 
 const env = createEnv();

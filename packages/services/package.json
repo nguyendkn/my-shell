@@ -1,0 +1,25 @@
+{
+  "name": "@repo/services",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Cross-cutting application services used by the Claude runtime.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json}\" --ignore-path ../../.prettierignore",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,json}\" --ignore-path ../../.prettierignore"
+  },
+  "dependencies": {
+    "@repo/runtime": "*"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "*",
+    "@repo/typescript-config": "*",
+    "eslint": "^9.39.1"
+  }
+}

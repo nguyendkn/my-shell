@@ -12,6 +12,7 @@ import {
   Settings2Icon,
   TerminalSquareIcon,
   AlertTriangleIcon,
+  SquareIcon,
   XIcon,
 } from "lucide-react";
 
@@ -124,8 +125,11 @@ type ProjectChatComposerProps = {
   detail: ProjectDetail;
   mode: "Plan" | "Act";
   model: string;
+  isRunning?: boolean;
+  runtimeSummary?: string;
   onModeChange: (mode: "Plan" | "Act") => void;
   onSend: (message: ProjectChatComposerSubmit) => void;
+  onStop?: () => void;
 };
 
 function shouldShowSlashCommandsMenu(text: string, cursorPosition: number) {
@@ -395,8 +399,11 @@ export function ProjectChatComposer({
   detail,
   mode,
   model,
+  isRunning = false,
+  runtimeSummary,
   onModeChange,
   onSend,
+  onStop,
 }: ProjectChatComposerProps) {
   const [value, setValue] = React.useState("");
   const [cursorPosition, setCursorPosition] = React.useState(0);
@@ -604,7 +611,9 @@ export function ProjectChatComposer({
       !event.nativeEvent.isComposing
     ) {
       event.preventDefault();
-      submitMessage();
+      if (!isRunning) {
+        submitMessage();
+      }
     }
   }
 
@@ -873,15 +882,28 @@ export function ProjectChatComposer({
               type="button"
               size="icon"
               className="absolute bottom-2 right-2"
-              disabled={!value.trim() && attachments.length === 0}
-              onClick={submitMessage}
+              variant={isRunning ? "secondary" : "default"}
+              disabled={
+                !isRunning && !value.trim() && attachments.length === 0
+              }
+              onClick={() => {
+                if (isRunning) {
+                  onStop?.();
+                } else {
+                  submitMessage();
+                }
+              }}
               data-testid="project-chat-send"
             >
-              <SendIcon />
-              <span className="sr-only">Send message</span>
+              {isRunning ? <SquareIcon /> : <SendIcon />}
+              <span className="sr-only">
+                {isRunning ? "Stop runtime" : "Send message"}
+              </span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Send message</TooltipContent>
+          <TooltipContent>
+            {isRunning ? "Stop runtime" : "Send message"}
+          </TooltipContent>
         </Tooltip>
       </div>
       <input
@@ -968,6 +990,14 @@ export function ProjectChatComposer({
           <ToggleGroupItem value="Act">Act</ToggleGroupItem>
         </ToggleGroup>
       </div>
+      {runtimeSummary ? (
+        <div
+          className="mt-1 truncate text-xs text-muted-foreground"
+          data-testid="project-runtime-summary"
+        >
+          {runtimeSummary}
+        </div>
+      ) : null}
     </footer>
   );
 }

@@ -52,6 +52,104 @@ goals, flow, hierarchy, accessibility, responsiveness, states, or performance.
 
 ## Resolved Cases
 
+### 2026-04-26 - Native Runtime Chat Bridge
+
+**Signal:** Project chat needed to call `packages/runtime` natively from the
+Electrobun shell, but the runtime package was only partially restored and the
+SDK-looking entrypoints still threw stub errors.
+
+**Cause:**
+
+- Renderer code cannot safely import the runtime package directly because it
+  depends on Bun/Node process behavior and mutable runtime globals.
+- The stable local contract is the runtime CLI stream protocol, not
+  `src/entrypoints/agentSdkTypes.ts`.
+- Electrobun dev launches the Bun main process from
+  `apps/shell/build/dev-win-x64/FPTClaw-dev/bin`, so resolving
+  `../../packages/runtime` from `process.cwd()` points outside the workspace and
+  makes chat show `Runtime package entrypoint was not found.`
+- `bun run --cwd packages/runtime dev:restore-check` still reported the missing
+  `vendor/image-processor.node`, so chat UX must surface restore-pending status
+  instead of assuming the runtime is fully runnable.
+- `bun packages/runtime/src/bootstrap-entry.ts --help` can still fail after the
+  entrypoint is found when runtime dependencies are not installed; the verified
+  local root cause was `Cannot find module 'lodash-es/memoize.js' from
+'D:\Projects\MyShell\packages\runtime\src\utils\debug.ts'`. `bun install
+--frozen-lockfile` also failed because workspace dependencies
+  `@repo/orchestration` and `@repo/schemas` are referenced by
+  `packages/runtime/package.json` but no matching local packages exist.
+
+**Fix:**
+
+- Add an Electrobun RPC boundary for runtime turn start, cancel, status, and
+  streamed `projectRuntimeEvent` messages.
+- Spawn one Bun-side runtime process per chat turn and translate stream-json
+  messages into assistant, reasoning, tool, permission, system, and result rows.
+- Resolve runtime root via `FPTCLAW_RUNTIME_ROOT` plus ancestor search, and set
+  the env from `apps/shell/scripts/electrobun.ts` so desktop builds do not depend
+  on the Electrobun process cwd.
+- Write runtime bridge traces to `apps/shell/logs/runtime-bridge.log` with
+  runtime-root candidates, command exit codes, stderr, spawn args, pid, stdin
+  availability, and turn exit state.
+- Use `--input-format stream-json`, keep stdin piped for the whole turn, send
+  permission decisions back as `control_response`, and include
+  `--permission-prompt-tool stdio` so `can_use_tool` requests reach the shell UI.
+- Keep the renderer as a UI adapter with stop/retry-ready state, runtime status,
+  near-bottom autoscroll, and web-mode fallback behavior.
+
+**Verify:**
+
+- `bun run --cwd apps/shell check-types`
+- `bun run --cwd apps/shell lint`
+- `bun run --cwd apps/shell cy:run -- --spec cypress/e2e/project-detail.cy.ts`
+- `bun run --cwd apps/shell cy:run:desktop`
+- `bun run --cwd packages/runtime dev:restore-check`
+- `bun packages/runtime/src/bootstrap-entry.ts --help` currently fails with the
+  `lodash-es/memoize.js` restore/dependency error above.
+
+**Remember:** Integrate `packages/runtime` through a native Electrobun process
+facade and the stream-json message contract. Do not wire the chat UI directly to
+the stub SDK facade. Always trace desktop runtime failures to
+`apps/shell/logs/runtime-bridge.log`, and keep restore-pending runtime status
+visible in the UI until the original runtime entry can load cleanly.
+
+### 2026-04-26 - Desktop Settings JSON Isolation
+
+**Signal:** A desktop Settings spec could edit runtime JSON through Electrobun,
+but full `cy:run:desktop` first failed in an older browser-profile spec because
+the test expected exactly 3 rows while the live panel had 4.
+
+**Cause:**
+
+- Runtime settings writes are real filesystem writes in desktop mode, so tests
+  must isolate `CLAUDE_CONFIG_DIR` and the settings workspace root.
+- Desktop specs can share app state across route changes, and fixture counts for
+  panels like Browser Profiles are allowed to grow as features evolve.
+
+**Fix:**
+
+- Set `CLAUDE_CONFIG_DIR` and `FPTCLAW_SETTINGS_WORKSPACE_ROOT` to temp
+  directories in `apps/shell/scripts/cypress-desktop.ts`.
+- In the Settings RPC, write project-local overrides to
+  `.claude/settings.local.json` and ensure that exact path is added to
+  `.gitignore`.
+- In desktop Cypress, assert profile creation by `afterCount === beforeCount + 1`
+  instead of pinning the starting fixture count.
+
+**UI/UX:** Users get a real desktop Settings editor with JSON highlighting,
+schema URL support, save/reload feedback, read-only policy state, and no test
+pollution of the working repo.
+
+**Verify:**
+
+- `bun run --cwd apps/shell check-types`
+- `bun run --cwd apps/shell lint`
+- `bun run --cwd apps/shell cy:run:desktop`
+
+**Remember:** Desktop Settings tests should write to temp runtime config roots.
+When verifying mutable panels, assert stable behavior such as count deltas and
+state transitions, not exact seed counts unless the seed count is the feature.
+
 ### 2026-04-26 - Projects And Detail Responsive UX Sweep
 
 **Signal:** UI/UX review found that Projects was hard to search across 1,000
@@ -515,3 +613,58 @@ sync if first paint only corrects itself after a native resize.
 **Remember:** Prefer moving Node-only config logic into a shared config package
 over widening browser app tsconfig types. Scope Turbo tasks when only specific
 workspaces own the scripts.
+
+### 2026-04-26 - Electrobun Taskbar-Safe Startup Maximize
+
+**Signal:** The shell app needed to always open in maximized mode. The native
+window reported maximized, but DevTools still showed `html`/viewport dimensions
+from the old 1440x960 startup frame. A later native maximize attempt also let
+the window cover the Windows taskbar.
+
+**Cause:**
+
+- A post-show `setSize()` nudge is useful for a normal-size first paint, but it
+  can restore or race a window that has already been maximized.
+- Electrobun's `BrowserWindow` creates the default `BrowserView` during the
+  constructor using the constructor `frame`. If that frame is 1440x960, the
+  default WebView can keep that viewport even after native `maximize()` when the
+  Windows WebView2 auto-resize event does not settle at startup.
+- Desktop Cypress started as soon as the WebView DOM was ready, not when the
+  native `BrowserWindow` had finished reaching the intended work-area frame.
+- DOM-only `.click()` in desktop eval can miss Radix tab state changes that rely
+  on pointer/mouse event sequences.
+- On Windows, taskbar-safe maximized sizing should use the display work area,
+  not full screen bounds. A `setFrame()` call from the window `resize` event can
+  create a resize/setFrame loop and make the Electrobun process exit before the
+  desktop test health endpoint is reachable.
+
+**Fix:**
+
+- In `apps/shell/src/electrobun/main.ts`, use
+  `Screen.getPrimaryDisplay().workArea` for the initial BrowserWindow frame so
+  Electrobun's default BrowserView is created with the maximized-sized viewport.
+- Call `setFrame(workArea.x, workArea.y, workArea.width, workArea.height)` after
+  `show()`, on WebView `dom-ready`, and shortly after first paint. This creates
+  a taskbar-safe maximized-equivalent startup frame without entering a taskbar-
+  covering fullscreen-sized state.
+- Expose both display `workArea` and `window.frame` from the desktop test server
+  health payload. Make `apps/shell/scripts/cypress-desktop.ts` wait for both
+  `domReady` and a window frame that matches the work area.
+- Assert `document.documentElement.clientWidth/clientHeight` and `innerWidth` /
+  `innerHeight` in desktop Cypress so tests catch stale HTML viewport
+  regressions.
+- Make the desktop eval click helper dispatch pointer and mouse events before
+  calling `.click()`.
+
+**Verify:**
+
+- `bun run --cwd apps/shell check-types`
+- `bun run --cwd apps/shell desktop:build`
+- `bun run --cwd apps/shell cy:run:desktop`
+
+**Remember:** For startup-maximized Electrobun windows on Windows, size the
+constructor `frame` from the display work area before creating the window, then
+fit the same work-area frame during startup. Do not rely on `maximize()` alone to
+resize the default BrowserView viewport, do not use full screen bounds when the
+taskbar must remain visible, and do not call `setFrame()` from the window
+`resize` event.

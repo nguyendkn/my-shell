@@ -213,9 +213,22 @@ describe("Project detail chat", () => {
     cy.get('[data-testid="project-side-panel"]').should("not.exist");
     cy.get('[data-testid="project-side-panel-rail"]').should("be.visible");
     cy.get('[data-testid="project-terminal-toolbar"]').should("be.visible");
+    cy.get('[data-testid="project-terminal-toolbar"] button').then(
+      ($buttons) => {
+        expect($buttons.eq(0)).to.have.attr(
+          "data-testid",
+          "project-terminal-fullscreen",
+        );
+        expect($buttons.eq(1)).to.have.attr(
+          "data-testid",
+          "project-terminal-split",
+        );
+      },
+    );
     cy.get('[data-testid="project-terminal-panel"]')
       .should("be.visible")
-      .and("have.attr", "data-terminal-count", "1");
+      .and("have.attr", "data-terminal-count", "1")
+      .and("have.attr", "data-fullscreen", "false");
     cy.get('[data-testid="project-terminal-pane"]').should("have.length", 1);
     cy.get('[data-testid="project-terminal-close"]').should("be.disabled");
     expectTerminalPanesInsideViewport();
@@ -248,6 +261,45 @@ describe("Project detail chat", () => {
       "2",
     );
     cy.get('[data-testid="project-terminal-pane"]').should("have.length", 2);
+  });
+
+  it("shows browser profiles and creates a new Camoufox profile", () => {
+    cy.get('[data-testid="project-workspace-tab-browser-profiles"]').click();
+
+    cy.get('[data-testid="project-side-panel"]').should("not.exist");
+    cy.get('[data-testid="project-browser-profiles-panel"]')
+      .should("be.visible")
+      .and("have.attr", "data-profile-count", "3");
+    cy.get('[data-testid="project-browser-provider"]').should("have.length", 2);
+    cy.get('[data-testid="project-browser-profile-row"]').should(
+      "have.length",
+      3,
+    );
+
+    cy.contains('[data-testid="project-browser-profile-row"]', "Research lane")
+      .click()
+      .should("have.attr", "aria-pressed", "true");
+    cy.get('[data-testid="project-browser-profile-detail"]').should(
+      "contain.text",
+      "Research lane",
+    );
+
+    cy.get('[data-testid="project-browser-profile-search"]').type("crm");
+    cy.get('[data-testid="project-browser-profile-row"]')
+      .should("have.length", 1)
+      .and("contain.text", "CRM operator");
+
+    cy.get('[data-testid="project-browser-profile-search"]').clear();
+    cy.get('[data-testid="project-browser-profile-create"]').click();
+    cy.get('[data-testid="project-browser-profiles-panel"]').should(
+      "have.attr",
+      "data-profile-count",
+      "4",
+    );
+    cy.get('[data-testid="project-browser-profile-row"]')
+      .first()
+      .should("contain.text", "Camoufox lane")
+      .and("contain.text", "Needs setup");
   });
 
   it("returns to the virtualized project list", () => {

@@ -104,7 +104,7 @@ const data = {
   navSecondary: [
     {
       title: "Settings",
-      url: "#",
+      url: "/settings",
       icon: <Settings2Icon />,
     },
     {
@@ -176,7 +176,14 @@ export function AppSidebar({
           }))}
         />
         <NavDocuments items={data.documents} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavSecondary
+          items={data.navSecondary.map((item) => ({
+            ...item,
+            isActive: currentPath === item.url,
+            onSelect: item.url === "#" ? undefined : onNavigate,
+          }))}
+          className="mt-auto"
+        />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />

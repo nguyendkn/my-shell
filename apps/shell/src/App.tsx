@@ -36,6 +36,7 @@ const ProjectsPage = lazy(() =>
     default: module.ProjectsPage,
   })),
 );
+const SettingsPage = lazy(() => import("./pages/settings-page"));
 const ProjectDetailPage = lazy(() =>
   import("./pages/project-detail-page").then((module) => ({
     default: module.ProjectDetailPage,
@@ -203,6 +204,8 @@ function App() {
   const headerTitle =
     currentPath === "/dashboard"
       ? "Dashboard"
+      : currentPath === "/settings"
+        ? "Settings"
       : isProjectDetail
         ? (currentProject?.name ?? "Project not found")
         : "Projects";
@@ -307,6 +310,12 @@ function App() {
                       fallback={<RouteFallback label="Loading dashboard..." />}
                     >
                       <DashboardPage />
+                    </Suspense>
+                  ) : currentPath === "/settings" ? (
+                    <Suspense
+                      fallback={<RouteFallback label="Loading settings..." />}
+                    >
+                      <SettingsPage />
                     </Suspense>
                   ) : isProjectDetail ? (
                     <Suspense

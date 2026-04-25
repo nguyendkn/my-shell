@@ -2,6 +2,8 @@ import * as React from "react";
 import {
   ArrowLeftIcon,
   BotIcon,
+  FingerprintIcon,
+  Maximize2Icon,
   PlusIcon,
   SplitSquareHorizontalIcon,
   TerminalSquareIcon,
@@ -42,6 +44,10 @@ import type {
   ProjectTerminalPanelHandle,
   ProjectTerminalPanelProps,
 } from "../components/project-detail/project-terminal-panel";
+import type {
+  ProjectBrowserProfilesPanelHandle,
+  ProjectBrowserProfilesPanelProps,
+} from "../components/project-detail/project-browser-profiles-panel";
 
 type ProjectDetailPageProps = {
   projectId: number;
@@ -51,7 +57,7 @@ type ProjectDetailPageProps = {
   onSidePanelOpenChange: (open: boolean) => void;
 };
 
-type ProjectWorkspaceTab = "coding-agent" | "terminal";
+type ProjectWorkspaceTab = "coding-agent" | "terminal" | "browser-profiles";
 const PROJECT_SIDE_PANEL_SHEET_MEDIA = "(max-width: 1279px)";
 
 const ProjectTerminalPanel = React.lazy(() =>
@@ -70,6 +76,18 @@ const ProjectChatShell = React.lazy(() =>
     default: module.ProjectChatShell,
   })),
 );
+const ProjectBrowserProfilesPanel = React.lazy(() =>
+  import("../components/project-detail/project-browser-profiles-panel").then(
+    (module) => ({
+      default: module.ProjectBrowserProfilesPanel,
+    }),
+  ),
+) as React.LazyExoticComponent<
+  React.ForwardRefExoticComponent<
+    ProjectBrowserProfilesPanelProps &
+      React.RefAttributes<ProjectBrowserProfilesPanelHandle>
+  >
+>;
 
 function useMediaQuery(query: string) {
   const [matches, setMatches] = React.useState(
@@ -202,21 +220,37 @@ export function ProjectDetailPage({
     React.useState<ProjectSidePanelTab>("wiki");
   const [activeWorkspaceTab, setActiveWorkspaceTab] =
     React.useState<ProjectWorkspaceTab>("coding-agent");
+  const [isTerminalFullscreen, setIsTerminalFullscreen] =
+    React.useState(false);
   const terminalPanelRef = React.useRef<ProjectTerminalPanelHandle>(null);
+  const browserProfilesPanelRef =
+    React.useRef<ProjectBrowserProfilesPanelHandle>(null);
   const usesSheetSidePanel = useMediaQuery(PROJECT_SIDE_PANEL_SHEET_MEDIA);
+
+  React.useEffect(() => {
+    setIsTerminalFullscreen(false);
+  }, [projectId]);
 
   function handleWorkspaceTabChange(value: string) {
     const nextTab = value as ProjectWorkspaceTab;
 
     setActiveWorkspaceTab(nextTab);
 
-    if (nextTab === "terminal") {
+    if (nextTab !== "terminal") {
+      setIsTerminalFullscreen(false);
+    }
+
+    if (nextTab === "terminal" || nextTab === "browser-profiles") {
       onSidePanelOpenChange(false);
     }
   }
 
   function handleSplitTerminal() {
     terminalPanelRef.current?.splitTerminal();
+  }
+
+  function handleCreateBrowserProfile() {
+    browserProfilesPanelRef.current?.createProfile();
   }
 
   if (!detail) {
@@ -263,12 +297,37 @@ export function ProjectDetailPage({
                 <TerminalSquareIcon />
                 Terminal
               </TabsTrigger>
+              <TabsTrigger
+                value="browser-profiles"
+                className="min-w-0"
+                data-testid="project-workspace-tab-browser-profiles"
+              >
+                <FingerprintIcon />
+                <span className="hidden sm:inline">Browser Profiles</span>
+                <span className="sm:hidden">Browsers</span>
+              </TabsTrigger>
             </TabsList>
             {activeWorkspaceTab === "terminal" ? (
               <div
                 className="ml-auto flex shrink-0 items-center gap-1"
                 data-testid="project-terminal-toolbar"
               >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsTerminalFullscreen(true)}
+                      data-testid="project-terminal-fullscreen"
+                    >
+                      <Maximize2Icon />
+                      <span className="hidden sm:inline">Full screen</span>
+                      <span className="sm:hidden">Full</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Focus terminal splits full screen</TooltipContent>
+                </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -301,6 +360,30 @@ export function ProjectDetailPage({
                 </Tooltip>
               </div>
             ) : null}
+            {activeWorkspaceTab === "browser-profiles" ? (
+              <div
+                className="ml-auto flex shrink-0 items-center gap-1"
+                data-testid="project-browser-toolbar"
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCreateBrowserProfile}
+                      data-testid="project-browser-profile-create"
+                    >
+                      <PlusIcon />
+                      New profile
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Create Camoufox browser profile
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            ) : null}
           </div>
           <TabsContent
             forceMount
@@ -329,7 +412,30 @@ export function ProjectDetailPage({
                 </div>
               }
             >
-              <ProjectTerminalPanel ref={terminalPanelRef} detail={detail} />
+              <ProjectTerminalPanel
+                ref={terminalPanelRef}
+                detail={detail}
+                isFullscreen={isTerminalFullscreen}
+                onFullscreenChange={setIsTerminalFullscreen}
+              />
+            </React.Suspense>
+          </TabsContent>
+          <TabsContent
+            forceMount
+            value="browser-profiles"
+            className="min-h-0 min-w-0 flex-1 flex-col overflow-hidden data-[state=active]:flex data-[state=inactive]:hidden"
+          >
+            <React.Suspense
+              fallback={
+                <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
+                  Loading browser profiles...
+                </div>
+              }
+            >
+              <ProjectBrowserProfilesPanel
+                ref={browserProfilesPanelRef}
+                detail={detail}
+              />
             </React.Suspense>
           </TabsContent>
         </Tabs>

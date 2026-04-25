@@ -1,0 +1,32 @@
+{
+  "name": "@repo/schemas",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Leaf package — Zod schemas cho typed contracts (LaneEvent, TaskPacket, PolicyRule, Evidence, Recovery, Provider). Zero deps on other @repo/* packages để tránh circular dependencies.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./lane-event": "./src/lane-event.ts",
+    "./task-packet": "./src/task-packet.ts",
+    "./evidence": "./src/evidence.ts",
+    "./recovery": "./src/recovery.ts",
+    "./policy": "./src/policy.ts",
+    "./provider": "./src/provider.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.{ts,md,json}\" --ignore-path ../../.prettierignore",
+    "format:check": "prettier --check \"src/**/*.{ts,md,json}\" --ignore-path ../../.prettierignore"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "*",
+    "@repo/typescript-config": "*",
+    "@types/bun": "^1.3.12",
+    "eslint": "^9.39.1",
+    "typescript": "5.9.2"
+  }
+}
