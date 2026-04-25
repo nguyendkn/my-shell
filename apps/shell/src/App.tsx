@@ -3,15 +3,59 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar";
-import { dashboardData } from "./data/dashboard-data";
-import { DataTable } from "./components/data-table";
-import { ChartAreaInteractive } from "./components/chart-area-interactive";
-import { SectionCards } from "./components/section-cards";
 import { SiteHeader } from "./components/site-header";
 import { AppSidebar } from "./components/app-sidebar";
-import type { CSSProperties } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+  type CSSProperties,
+} from "react";
+import { ProjectsPage } from "./pages/projects-page";
+
+const DEFAULT_SIDEBAR_WIDTH = 288;
+const DashboardPage = lazy(() => import("./pages/dashboard-page"));
+
+function getRoutePath() {
+  if (window.location.pathname === "/") {
+    return "/projects";
+  }
+
+  return window.location.pathname;
+}
+
+function useAppRoute() {
+  const [currentPath, setCurrentPath] = useState(getRoutePath);
+
+  useEffect(() => {
+    if (window.location.pathname === "/") {
+      window.history.replaceState(null, "", "/projects");
+    }
+
+    const handlePopState = () => setCurrentPath(getRoutePath());
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  function navigate(path: string) {
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, "", path);
+    }
+
+    setCurrentPath(path);
+  }
+
+  return { currentPath, navigate };
+}
 
 function App() {
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH);
+  const { currentPath, navigate } = useAppRoute();
+  const headerTitle = currentPath === "/dashboard" ? "Dashboard" : "Projects";
+
   return (
     <ThemeProvider
       attribute="class"
@@ -24,27 +68,39 @@ function App() {
           <SidebarProvider
             style={
               {
-                "--sidebar-width": "calc(var(--spacing) * 72)",
+                "--sidebar-width": `${sidebarWidth}px`,
                 "--header-height": "calc(var(--spacing) * 12)",
               } as CSSProperties
             }
           >
-            <AppSidebar variant="inset" />
+            <AppSidebar
+              currentPath={currentPath}
+              variant="inset"
+              width={sidebarWidth}
+              onNavigate={navigate}
+              onWidthChange={setSidebarWidth}
+            />
             <SidebarInset>
-              <SiteHeader />
-              <div className="flex flex-1 flex-col">
-                <div className="@container/main flex flex-1 flex-col gap-2">
-                  <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-                    <SectionCards />
-                    <div className="px-4 lg:px-6">
-                      <ChartAreaInteractive />
-                    </div>
-                    <DataTable data={dashboardData} />
-                  </div>
+              <SiteHeader title={headerTitle} />
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="@container/main flex min-h-0 flex-1 flex-col gap-2">
+                  {currentPath === "/dashboard" ? (
+                    <Suspense
+                      fallback={
+                        <div className="p-4 text-sm text-muted-foreground lg:p-6">
+                          Loading dashboard...
+                        </div>
+                      }
+                    >
+                      <DashboardPage />
+                    </Suspense>
+                  ) : (
+                    <ProjectsPage />
+                  )}
                 </div>
               </div>
             </SidebarInset>
-          </SidebarProvider>  
+          </SidebarProvider>
           <Toaster />
         </>
       </TooltipProvider>

@@ -1,6 +1,6 @@
 "use client"
 
-import { Button } from "@repo/ui/components/button"
+import type { ReactNode } from "react"
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -8,7 +8,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@repo/ui/components/sidebar"
-import { CirclePlusIcon, MailIcon } from "lucide-react"
+import { CirclePlusIcon } from "lucide-react"
 
 export function NavMain({
   items,
@@ -16,7 +16,9 @@ export function NavMain({
   items: {
     title: string
     url: string
-    icon?: React.ReactNode
+    icon?: ReactNode
+    isActive?: boolean
+    onSelect?: (url: string) => void
   }[]
 }) {
   return (
@@ -32,23 +34,22 @@ export function NavMain({
               />
               <span>Quick Create</span>
             </SidebarMenuButton>
-            <Button
-              size="icon"
-              className="size-8 group-data-[collapsible=icon]:opacity-0"
-              variant="outline"
-            >
-              <MailIcon
-              />
-              <span className="sr-only">Inbox</span>
-            </Button>
           </SidebarMenuItem>
         </SidebarMenu>
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton tooltip={item.title}>
-                {item.icon}
-                <span>{item.title}</span>
+              <SidebarMenuButton asChild isActive={item.isActive} tooltip={item.title}>
+                <a
+                  href={item.url}
+                  onClick={(event) => {
+                    event.preventDefault()
+                    item.onSelect?.(item.url)
+                  }}
+                >
+                  {item.icon}
+                  <span>{item.title}</span>
+                </a>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
