@@ -1,4 +1,11 @@
 import type {
+  ProjectBrowserHarnessCancelParams,
+  ProjectBrowserHarnessCancelResult,
+  ProjectBrowserHarnessEvent,
+  ProjectBrowserHarnessTaskParams,
+  ProjectBrowserHarnessTaskResult,
+} from "../electrobun/browser-harness-types";
+import type {
   CreateProjectBrowserProfileParams,
   LaunchProjectBrowserProfileResult,
   LoadProjectBrowserProfilesResult,
@@ -79,6 +86,12 @@ export type ShellWebviewRPC = {
     launchProjectBrowserProfile: (
       params: ProjectBrowserProfileOperationParams,
     ) => Promise<LaunchProjectBrowserProfileResult>;
+    startProjectBrowserHarnessTask: (
+      params: ProjectBrowserHarnessTaskParams,
+    ) => Promise<ProjectBrowserHarnessTaskResult>;
+    cancelProjectBrowserHarnessTask: (
+      params: ProjectBrowserHarnessCancelParams,
+    ) => Promise<ProjectBrowserHarnessCancelResult>;
     loadRuntimeSettings: (
       params: RuntimeSettingsLoadParams,
     ) => Promise<RuntimeSettingsLoadResult>;
@@ -95,6 +108,10 @@ export type ShellWebviewRPC = {
       message: "projectTerminalEvent",
       listener: (event: ProjectTerminalEvent) => void,
     ): void;
+    (
+      message: "projectBrowserHarnessEvent",
+      listener: (event: ProjectBrowserHarnessEvent) => void,
+    ): void;
   };
   removeMessageListener: {
     (
@@ -104,6 +121,10 @@ export type ShellWebviewRPC = {
     (
       message: "projectTerminalEvent",
       listener: (event: ProjectTerminalEvent) => void,
+    ): void;
+    (
+      message: "projectBrowserHarnessEvent",
+      listener: (event: ProjectBrowserHarnessEvent) => void,
     ): void;
   };
 };

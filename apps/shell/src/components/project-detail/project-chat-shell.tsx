@@ -1,4 +1,5 @@
 import * as React from "react";
+import { isBrowserHarnessPrompt } from "@repo/browser";
 import { BotIcon } from "lucide-react";
 
 import type {
@@ -6,6 +7,16 @@ import type {
   ProjectChatMessage as ProjectChatMessageData,
   ProjectDetail,
 } from "../../data/project-detail";
+import type {
+  ProjectBrowserHarnessEvent,
+  ProjectBrowserHarnessSessionState,
+} from "../../electrobun/browser-harness-types";
+import {
+  cancelProjectBrowserHarnessTask,
+  canUseNativeBrowserHarness,
+  startProjectBrowserHarnessTask,
+  subscribeProjectBrowserHarnessEvents,
+} from "../../lib/native-browser-harness";
 import type {
   ProjectRuntimeEvent,
   ProjectRuntimePermissionDecision,
@@ -38,6 +49,13 @@ type RuntimeUiState = {
   isRunning: boolean;
 };
 
+type BrowserHarnessUiState = {
+  activeTaskId: string | null;
+  state: ProjectBrowserHarnessSessionState | "idle";
+  summary: string;
+  isRunning: boolean;
+};
+
 const RUNTIME_PERMISSION_ALLOW_ACTION = "runtime-permission-allow-once";
 const RUNTIME_PERMISSION_DENY_ACTION = "runtime-permission-deny";
 
@@ -65,6 +83,24 @@ function getMessageStatus(
 
   if (state === "requires_action") {
     return "pending";
+  }
+
+  return "running";
+}
+
+function getBrowserHarnessMessageStatus(
+  state: ProjectBrowserHarnessSessionState,
+): ProjectChatMessageData["status"] {
+  if (state === "failed") {
+    return "failed";
+  }
+
+  if (state === "canceled") {
+    return "canceled";
+  }
+
+  if (state === "completed") {
+    return "complete";
   }
 
   return "running";
@@ -345,6 +381,130 @@ function applyRuntimeEvent(
   }
 }
 
+function formatBrowserHarnessPlan(event: Extract<ProjectBrowserHarnessEvent, { type: "lead_plan" }>) {
+  const { plan } = event;
+
+  return [
+    `Goal: ${plan.goal}`,
+    `Start point: ${plan.startPoint}`,
+    `Endpoint: ${plan.endpoint}`,
+    `Mode: ${plan.mode}`,
+    `Team: ${plan.workers.length} browser agents, 1 Hermes lead`,
+    ...plan.workers.map(
+      (worker) =>
+        `- ${worker.agentName}: ${worker.profileName} (${worker.providerId})`,
+    ),
+  ].join("\n");
+}
+
+function formatProcessTitleCheck(
+  event: Extract<ProjectBrowserHarnessEvent, { type: "process_title" }>,
+) {
+  return [
+    `Profile: ${event.profileName}`,
+    `PID: ${event.pid ?? "n/a"}`,
+    `Provider: ${event.provider}`,
+    `Mode: ${event.mode}`,
+    `Expected process title: ${event.expectedProcessTitle}`,
+    `Window title: ${event.observedWindowTitle || "headless/no window"}`,
+    `Command line title marker verified: ${event.commandLineHasTitle ? "yes" : "no"}`,
+  ].join("\n");
+}
+
+function applyBrowserHarnessEvent(
+  messages: ProjectChatMessageData[],
+  event: ProjectBrowserHarnessEvent,
+) {
+  const time = formatMessageTime(new Date(event.timestamp));
+  const base = {
+    browserHarnessTaskId: event.taskId,
+    browserHarnessSessionId: event.sessionId,
+    time,
+  };
+
+  switch (event.type) {
+    case "session_state":
+      return upsertMessage(messages, {
+        ...base,
+        id: `browser-harness-state-${event.taskId}`,
+        role: "system",
+        kind: "tool",
+        title: "Hermes browser harness",
+        body: event.summary,
+        status: getBrowserHarnessMessageStatus(event.state),
+      });
+    case "lead_plan":
+      return upsertMessage(messages, {
+        ...base,
+        id: `browser-harness-plan-${event.taskId}`,
+        role: "assistant",
+        kind: "checkpoint",
+        title: "Hermes lead",
+        body: formatBrowserHarnessPlan(event),
+        status: "complete",
+      });
+    case "worker_state":
+      return upsertMessage(messages, {
+        ...base,
+        id: `browser-harness-worker-${event.taskId}-${event.agentId}`,
+        role: "system",
+        kind: "tool",
+        title: event.agentName,
+        body: event.pid
+          ? `${event.summary}\nPID: ${event.pid}`
+          : event.summary,
+        status:
+          event.state === "failed"
+            ? "failed"
+            : event.state === "reported"
+              ? "complete"
+              : "running",
+      });
+    case "process_title":
+      return upsertMessage(messages, {
+        ...base,
+        id: `browser-harness-title-${event.taskId}-${event.agentId}`,
+        role: "system",
+        kind: event.ok ? "checkpoint" : "question",
+        title: "Browser process title",
+        body: formatProcessTitleCheck(event),
+        status: event.ok ? "complete" : "failed",
+      });
+    case "worker_report":
+      return upsertMessage(messages, {
+        ...base,
+        id: `browser-harness-report-${event.taskId}-${event.report.agentId}`,
+        role: "assistant",
+        kind: "tool",
+        title: `${event.report.profileName} report`,
+        body: event.report.summary,
+        status: event.report.ok ? "complete" : "failed",
+      });
+    case "lead_validation":
+      return upsertMessage(messages, {
+        ...base,
+        id: `browser-harness-validation-${event.taskId}`,
+        role: "assistant",
+        kind: event.ok ? "checkpoint" : "question",
+        title: "Lead validation",
+        body: event.summary,
+        status: event.ok ? "complete" : "failed",
+      });
+    case "result":
+      return upsertMessage(messages, {
+        ...base,
+        id: `browser-harness-result-${event.taskId}`,
+        role: "system",
+        kind: event.ok ? "checkpoint" : "question",
+        title: event.ok ? "Browser harness complete" : "Browser harness failed",
+        body: event.errors?.length
+          ? `${event.summary}\n${event.errors.join("\n")}`
+          : event.summary,
+        status: event.ok ? "complete" : "failed",
+      });
+  }
+}
+
 export function ProjectChatShell({ detail }: ProjectChatShellProps) {
   const [messages, setMessages] = React.useState(detail.messages);
   const [mode, setMode] = React.useState(detail.mode);
@@ -354,20 +514,37 @@ export function ProjectChatShell({ detail }: ProjectChatShellProps) {
     summary: canUseNativeProjectRuntime() ? "Checking runtime" : "",
     isRunning: false,
   });
+  const [browserHarnessState, setBrowserHarnessState] =
+    React.useState<BrowserHarnessUiState>({
+      activeTaskId: null,
+      state: "idle",
+      summary: "",
+      isRunning: false,
+    });
   const scrollerRef = React.useRef<HTMLDivElement>(null);
   const activeSessionRef = React.useRef<string | null>(null);
+  const activeBrowserTaskRef = React.useRef<string | null>(null);
   const pendingStopRef = React.useRef(false);
+  const pendingBrowserStopRef = React.useRef(false);
   const shouldFollowOutputRef = React.useRef(true);
 
   React.useEffect(() => {
     setMessages(detail.messages);
     setMode(detail.mode);
     activeSessionRef.current = null;
+    activeBrowserTaskRef.current = null;
     pendingStopRef.current = false;
+    pendingBrowserStopRef.current = false;
     setRuntimeState({
       activeSessionId: null,
       state: "idle",
       summary: canUseNativeProjectRuntime() ? "Checking runtime" : "",
+      isRunning: false,
+    });
+    setBrowserHarnessState({
+      activeTaskId: null,
+      state: "idle",
+      summary: "",
       isRunning: false,
     });
   }, [detail]);
@@ -450,6 +627,56 @@ export function ProjectChatShell({ detail }: ProjectChatShellProps) {
     };
   }, [detail.project.id]);
 
+  React.useEffect(() => {
+    let dispose: (() => void) | undefined;
+    let isDisposed = false;
+
+    if (!canUseNativeBrowserHarness()) {
+      return;
+    }
+
+    void subscribeProjectBrowserHarnessEvents((event) => {
+      if (event.projectId !== detail.project.id) {
+        return;
+      }
+
+      if (event.type === "session_state") {
+        const isRunning =
+          event.state === "starting" ||
+          event.state === "planning" ||
+          event.state === "running" ||
+          event.state === "validating";
+
+        if (!isRunning && activeBrowserTaskRef.current === event.taskId) {
+          activeBrowserTaskRef.current = null;
+        }
+
+        setBrowserHarnessState({
+          activeTaskId: isRunning ? event.taskId : null,
+          state: event.state,
+          summary: event.summary,
+          isRunning,
+        });
+      }
+
+      setMessages((currentMessages) =>
+        applyBrowserHarnessEvent(currentMessages, event),
+      );
+    }).then((unsubscribe) => {
+      if (isDisposed) {
+        unsubscribe();
+        return;
+      }
+
+      dispose = unsubscribe;
+    });
+
+    return () => {
+      isDisposed = true;
+      dispose?.();
+    };
+  }, [detail.project.id]);
+
   React.useLayoutEffect(() => {
     const scroller = scrollerRef.current;
 
@@ -476,6 +703,89 @@ export function ProjectChatShell({ detail }: ProjectChatShellProps) {
     };
 
     setMessages((currentMessages) => [...currentMessages, nextMessage]);
+
+    if (
+      canUseNativeBrowserHarness() &&
+      isBrowserHarnessPrompt(nextMessage.body)
+    ) {
+      setBrowserHarnessState({
+        activeTaskId: null,
+        state: "starting",
+        summary: "Starting Hermes browser harness",
+        isRunning: true,
+      });
+      pendingBrowserStopRef.current = false;
+
+      try {
+        const result = await startProjectBrowserHarnessTask({
+          projectId: detail.project.id,
+          projectName: detail.project.name,
+          cwd: detail.project.folderPath,
+          prompt: nextMessage.body,
+        });
+
+        if (!result.accepted || !result.taskId) {
+          const message =
+            result.error ?? "Native browser harness did not accept the task.";
+
+          setBrowserHarnessState({
+            activeTaskId: null,
+            state: "failed",
+            summary: message,
+            isRunning: false,
+          });
+          setMessages((currentMessages) => [
+            ...currentMessages,
+            {
+              id: `browser-harness-start-error-${detail.project.id}-${Date.now()}`,
+              role: "system",
+              kind: "question",
+              title: "Browser harness error",
+              body: message,
+              time: formatMessageTime(),
+              status: "failed",
+            },
+          ]);
+          return;
+        }
+
+        activeBrowserTaskRef.current = result.taskId;
+        setBrowserHarnessState((currentState) => ({
+          ...currentState,
+          activeTaskId: result.taskId,
+        }));
+
+        if (pendingBrowserStopRef.current) {
+          await cancelProjectBrowserHarnessTask({ taskId: result.taskId });
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to start browser harness.";
+
+        setBrowserHarnessState({
+          activeTaskId: null,
+          state: "failed",
+          summary: message,
+          isRunning: false,
+        });
+        setMessages((currentMessages) => [
+          ...currentMessages,
+          {
+            id: `browser-harness-start-error-${detail.project.id}-${Date.now()}`,
+            role: "system",
+            kind: "question",
+            title: "Browser harness error",
+            body: message,
+            time: formatMessageTime(),
+            status: "failed",
+          },
+        ]);
+      }
+
+      return;
+    }
 
     if (!canUseNativeProjectRuntime()) {
       return;
@@ -619,6 +929,30 @@ export function ProjectChatShell({ detail }: ProjectChatShellProps) {
   }
 
   async function handleStopRuntime() {
+    const activeBrowserTaskId =
+      activeBrowserTaskRef.current ?? browserHarnessState.activeTaskId;
+
+    if (activeBrowserTaskId) {
+      pendingBrowserStopRef.current = false;
+      setBrowserHarnessState((currentState) => ({
+        ...currentState,
+        summary: "Stopping browser harness",
+        isRunning: true,
+      }));
+      await cancelProjectBrowserHarnessTask({ taskId: activeBrowserTaskId });
+      return;
+    }
+
+    if (browserHarnessState.isRunning) {
+      pendingBrowserStopRef.current = true;
+      setBrowserHarnessState((currentState) => ({
+        ...currentState,
+        summary: "Stopping browser harness",
+        isRunning: true,
+      }));
+      return;
+    }
+
     const sessionId = activeSessionRef.current ?? runtimeState.activeSessionId;
 
     if (!sessionId) {
@@ -652,6 +986,12 @@ export function ProjectChatShell({ detail }: ProjectChatShellProps) {
 
     shouldFollowOutputRef.current = distanceFromBottom < 80;
   }
+
+  const isAgentRunning = runtimeState.isRunning || browserHarnessState.isRunning;
+  const agentSummary =
+    browserHarnessState.isRunning || browserHarnessState.summary
+      ? browserHarnessState.summary
+      : runtimeState.summary;
 
   return (
     <section
@@ -700,8 +1040,8 @@ export function ProjectChatShell({ detail }: ProjectChatShellProps) {
         detail={detail}
         mode={mode}
         model={detail.model}
-        isRunning={runtimeState.isRunning}
-        runtimeSummary={runtimeState.summary}
+        isRunning={isAgentRunning}
+        runtimeSummary={agentSummary}
         onModeChange={setMode}
         onSend={handleSend}
         onStop={handleStopRuntime}

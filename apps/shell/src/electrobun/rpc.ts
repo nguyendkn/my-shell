@@ -1,5 +1,12 @@
 import type { RPCSchema } from "electrobun";
 import type {
+  ProjectBrowserHarnessCancelParams,
+  ProjectBrowserHarnessCancelResult,
+  ProjectBrowserHarnessEvent,
+  ProjectBrowserHarnessTaskParams,
+  ProjectBrowserHarnessTaskResult,
+} from "./browser-harness-types";
+import type {
   CreateProjectBrowserProfileParams,
   LaunchProjectBrowserProfileResult,
   LoadProjectBrowserProfilesResult,
@@ -100,6 +107,14 @@ export type ShellRPCSchema = {
         params: ProjectBrowserProfileOperationParams;
         response: LaunchProjectBrowserProfileResult;
       };
+      startProjectBrowserHarnessTask: {
+        params: ProjectBrowserHarnessTaskParams;
+        response: ProjectBrowserHarnessTaskResult;
+      };
+      cancelProjectBrowserHarnessTask: {
+        params: ProjectBrowserHarnessCancelParams;
+        response: ProjectBrowserHarnessCancelResult;
+      };
       loadRuntimeSettings: {
         params: RuntimeSettingsLoadParams;
         response: RuntimeSettingsLoadResult;
@@ -116,6 +131,7 @@ export type ShellRPCSchema = {
     messages: {
       projectRuntimeEvent: ProjectRuntimeEvent;
       projectTerminalEvent: ProjectTerminalEvent;
+      projectBrowserHarnessEvent: ProjectBrowserHarnessEvent;
     };
   }>;
 };

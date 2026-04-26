@@ -8,6 +8,8 @@ import {
   verifyProjectBrowserProfile,
   warmProjectBrowserProfile,
 } from "./browser-profiles";
+import { createProjectBrowserHarnessBridge } from "./browser-harness";
+import type { ProjectBrowserHarnessEvent } from "./browser-harness-types";
 import { createProjectRuntimeBridge } from "./project-runtime";
 import { createProjectTerminalBridge } from "./project-terminal";
 import { loadRuntimeSettings, saveRuntimeSettings } from "./runtime-settings";
@@ -61,6 +63,9 @@ const runtimeBridge = createProjectRuntimeBridge({
 const terminalBridge = createProjectTerminalBridge({
   emit: emitProjectTerminalEvent,
 });
+const browserHarnessBridge = createProjectBrowserHarnessBridge({
+  emit: emitProjectBrowserHarnessEvent,
+});
 
 const shellRPC = BrowserView.defineRPC<ShellRPCSchema>({
   maxRequestTime: Infinity,
@@ -96,6 +101,10 @@ const shellRPC = BrowserView.defineRPC<ShellRPCSchema>({
       verifyProjectBrowserProfile,
       warmProjectBrowserProfile,
       launchProjectBrowserProfile,
+      startProjectBrowserHarnessTask: (params) =>
+        browserHarnessBridge.startTask(params),
+      cancelProjectBrowserHarnessTask: (params) =>
+        browserHarnessBridge.cancelTask(params),
       loadRuntimeSettings,
       saveRuntimeSettings,
     },
@@ -109,6 +118,10 @@ function emitProjectRuntimeEvent(event: ProjectRuntimeEvent) {
 
 function emitProjectTerminalEvent(event: ProjectTerminalEvent) {
   shellRPC.send.projectTerminalEvent(event);
+}
+
+function emitProjectBrowserHarnessEvent(event: ProjectBrowserHarnessEvent) {
+  shellRPC.send.projectBrowserHarnessEvent(event);
 }
 
 const mainWindow = new BrowserWindow({
@@ -138,6 +151,7 @@ if (isDesktopTestMode) {
 
 globalThis.addEventListener?.("beforeunload", () => {
   terminalBridge.stopAll();
+  browserHarnessBridge.stopAll();
 });
 
 setTimeout(() => {

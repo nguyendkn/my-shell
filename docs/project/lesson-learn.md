@@ -57,6 +57,50 @@ approached the compaction threshold:
 
 - [2026-04-25 UI and tooling lessons](lesson-learn-archive/2026-04-25-ui-tooling.md)
 
+### 2026-04-26 - Hermes Browser Harness Chat Orchestration
+
+**Keywords:** `packages/browser`, `projectBrowserHarnessEvent`,
+`--fptclaw-browser-title`, `browser-harness-chat-desktop.cy.ts`,
+`Browser Profiles`, `Hermes lead`, `agent per browser`, `headless=new`.
+
+**Signal:** A chat prompt needed to open one or more Browser Profiles as a
+coordinated local agent team, with one lead agent, one browser agent per profile,
+headed/headless modes, worker reports, lead validation, and proof that the native
+browser process matched the task.
+
+**Cause:** The existing Browser Profiles flow intentionally stopped at storage,
+prepare, and launch-check. Real harness behavior needed a separate reusable
+package plus an Electrobun-native bridge so renderer chat did not import native
+runtime code or pretend a browser was running without an actual process.
+
+**Fix:** Add `packages/browser` for prompt parsing, goal normalization, team
+planning, and deterministic process-title generation. Add the shell
+`browser-harness` bridge to select/create project-local `chrome-cdp` profiles,
+warm profile storage, launch Chromium/Edge with a distinct `--user-data-dir`,
+mode flags, a task HTML page, and `--fptclaw-browser-title=<title>`. Emit
+`projectBrowserHarnessEvent` messages so chat shows Hermes lead planning,
+worker states, process title checks, worker reports, lead validation, and final
+result. Stop browser processes by matching the unique profile path after
+validation.
+
+**Verify:**
+
+- `bun run --cwd packages/browser check-types`
+- `bun run --cwd packages/browser lint`
+- `bun run --cwd apps/shell check-types`
+- `bun run --cwd apps/shell lint`
+- `bun run --cwd apps/shell cy:run -- --spec cypress/e2e/project-detail.cy.ts`
+- `bun run --cwd apps/shell cy:run:desktop`
+- `bun run check-types`
+- `bun run lint`
+- `Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'chrome|edge|msedge' -and $_.CommandLine -like '*--fptclaw-browser-title=*' }`
+
+**Remember:** Browser harness work belongs behind a native Electrobun bridge and
+a reusable browser package. Each worker must use a unique profile directory, and
+desktop Cypress should prove the chat flow plus native process marker/title
+checks. Never leave browser processes alive after validation; kill by the unique
+`--user-data-dir` marker.
+
 ### 2026-04-26 - Chat Markdown Code Fence Rendering
 
 **Keywords:** `project-chat-markdown.tsx`, `marked`, `highlight.js`,

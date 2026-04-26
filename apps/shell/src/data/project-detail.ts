@@ -34,6 +34,8 @@ export type ProjectChatMessage = {
   runtimeTurnId?: string;
   runtimePermissionRequestId?: string;
   runtimePermissionToolName?: string;
+  browserHarnessTaskId?: string;
+  browserHarnessSessionId?: string;
 };
 
 export type ProjectResource = {

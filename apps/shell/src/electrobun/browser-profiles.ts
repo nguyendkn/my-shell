@@ -462,6 +462,39 @@ export async function warmProjectBrowserProfile(
   };
 }
 
+export async function updateProjectBrowserProfile(
+  params: ProjectBrowserProfileOperationParams,
+): Promise<ProjectBrowserProfileResult> {
+  const projectFolder = resolveProjectFolder(params.cwd);
+
+  if (!projectFolder) {
+    return {
+      ok: false,
+      storagePath: null,
+      error: "Project folder is unavailable.",
+    };
+  }
+
+  await mkdir(resolveProfileFolder(params.profile), { recursive: true });
+  await writeProfileMetadata(params.profile);
+  const { storagePath } = await upsertProfile(projectFolder, params.profile);
+
+  traceRuntimeBridge("browser_profile.update", {
+    projectId: params.projectId,
+    profileId: params.profile.id,
+    status: params.profile.status,
+    endpoint: params.profile.endpoint,
+    storagePath,
+  });
+
+  return {
+    ok: true,
+    storagePath,
+    profile: params.profile,
+    message: "Profile updated.",
+  };
+}
+
 export async function launchProjectBrowserProfile(
   params: ProjectBrowserProfileOperationParams,
 ): Promise<LaunchProjectBrowserProfileResult> {
