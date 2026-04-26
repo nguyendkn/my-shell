@@ -1,5 +1,13 @@
 import type { RPCSchema } from "electrobun";
 import type {
+  CreateProjectBrowserProfileParams,
+  LaunchProjectBrowserProfileResult,
+  LoadProjectBrowserProfilesResult,
+  ProjectBrowserProfileOperationParams,
+  ProjectBrowserProfileParams,
+  ProjectBrowserProfileResult,
+} from "./browser-profiles-types";
+import type {
   ProjectRuntimeCancelParams,
   ProjectRuntimeCancelResult,
   ProjectRuntimeEvent,
@@ -10,6 +18,15 @@ import type {
   ProjectRuntimeTurnParams,
   ProjectRuntimeTurnResult,
 } from "./runtime-types";
+import type {
+  ProjectTerminalEvent,
+  ProjectTerminalInputParams,
+  ProjectTerminalInputResult,
+  ProjectTerminalStartParams,
+  ProjectTerminalStartResult,
+  ProjectTerminalStopParams,
+  ProjectTerminalStopResult,
+} from "./terminal-types";
 import type {
   RuntimeSettingsLoadParams,
   RuntimeSettingsLoadResult,
@@ -51,6 +68,38 @@ export type ShellRPCSchema = {
         params: ProjectRuntimeStatusParams;
         response: ProjectRuntimeStatusResult;
       };
+      startProjectTerminal: {
+        params: ProjectTerminalStartParams;
+        response: ProjectTerminalStartResult;
+      };
+      writeProjectTerminalInput: {
+        params: ProjectTerminalInputParams;
+        response: ProjectTerminalInputResult;
+      };
+      stopProjectTerminal: {
+        params: ProjectTerminalStopParams;
+        response: ProjectTerminalStopResult;
+      };
+      loadProjectBrowserProfiles: {
+        params: ProjectBrowserProfileParams;
+        response: LoadProjectBrowserProfilesResult;
+      };
+      createProjectBrowserProfile: {
+        params: CreateProjectBrowserProfileParams;
+        response: ProjectBrowserProfileResult;
+      };
+      verifyProjectBrowserProfile: {
+        params: ProjectBrowserProfileOperationParams;
+        response: ProjectBrowserProfileResult;
+      };
+      warmProjectBrowserProfile: {
+        params: ProjectBrowserProfileOperationParams;
+        response: ProjectBrowserProfileResult;
+      };
+      launchProjectBrowserProfile: {
+        params: ProjectBrowserProfileOperationParams;
+        response: LaunchProjectBrowserProfileResult;
+      };
       loadRuntimeSettings: {
         params: RuntimeSettingsLoadParams;
         response: RuntimeSettingsLoadResult;
@@ -66,6 +115,7 @@ export type ShellRPCSchema = {
     requests: EmptyRequests;
     messages: {
       projectRuntimeEvent: ProjectRuntimeEvent;
+      projectTerminalEvent: ProjectTerminalEvent;
     };
   }>;
 };

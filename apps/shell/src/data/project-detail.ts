@@ -202,21 +202,10 @@ export type ProjectBrowserProfile = {
   notes: string;
 };
 
-export type ProjectBrowserHarnessState = {
-  agent: "Hermes Agent";
-  outcome: "Local AGI";
-  skillRoot: string;
-  helperPolicy: string;
-  domainSkills: number;
-  cdpUrl: string | null;
-  notes: string[];
-};
-
 export type ProjectBrowserState = {
   defaultProviderId: ProjectBrowserProviderId;
   providers: ProjectBrowserProvider[];
   profiles: ProjectBrowserProfile[];
-  harness: ProjectBrowserHarnessState;
 };
 
 export type ProjectDetail = {
@@ -259,67 +248,8 @@ function getProjectRoot(project: Project) {
   );
 }
 
-function makeMessages(project: Project): ProjectChatMessage[] {
-  const shortName = project.name.replace(/\s\d+$/, "");
-
-  return [
-    {
-      id: `${project.id}-task`,
-      role: "user",
-      kind: "text",
-      title: "Initial task",
-      body: `Prepare the next project pass for ${project.name}. Focus on open tasks, high-impact documents, and reviewer handoff.`,
-      time: "09:12",
-      files: ["proposal-outline.md", "review-notes.md"],
-    },
-    {
-      id: `${project.id}-thinking`,
-      role: "assistant",
-      kind: "reasoning",
-      title: "Planning",
-      body: `I am checking the project context first: owner, stale documents, unresolved tasks, and the latest ${shortName} review notes.`,
-      time: "09:13",
-      status: "complete",
-    },
-    {
-      id: `${project.id}-tool-docs`,
-      role: "system",
-      kind: "tool",
-      title: "Read project files",
-      body: "Scanned 12 project documents and grouped the active work into scope, evidence, review, and delivery lanes.",
-      time: "09:14",
-      status: "complete",
-      actions: ["12 docs", "4 lanes", "2 stale files"],
-    },
-    {
-      id: `${project.id}-assistant-plan`,
-      role: "assistant",
-      kind: "text",
-      title: "Project pass",
-      body: `The useful next move is to close the evidence gaps before editing the proposal draft. I would start with the ${project.priority.toLowerCase()} priority items tied to reviewer feedback, then refresh the task owner list.`,
-      time: "09:16",
-      status: "complete",
-    },
-    {
-      id: `${project.id}-checkpoint`,
-      role: "system",
-      kind: "checkpoint",
-      title: "Checkpoint created",
-      body: "Saved a project snapshot before applying the next set of task changes.",
-      time: "09:17",
-      status: "complete",
-    },
-    {
-      id: `${project.id}-question`,
-      role: "assistant",
-      kind: "question",
-      title: "Review choice",
-      body: "Should I prioritize reviewer comments first, or assemble the missing source documents before drafting?",
-      time: "09:18",
-      status: "pending",
-      actions: ["Reviewer comments", "Source documents"],
-    },
-  ];
+function makeMessages(): ProjectChatMessage[] {
+  return [];
 }
 
 function makeResources(project: Project): ProjectResource[] {
@@ -798,11 +728,7 @@ export function getProjectDetail(projectId: number): ProjectDetail | null {
   };
 }
 
-function makeBrowserState(project: Project): ProjectBrowserState {
-  const projectRoot = getProjectRoot(project).replace(/\\/g, "/");
-  const paddedId = String(project.id).padStart(3, "0");
-  const baseProfilePath = `${projectRoot}/.fptclaw/browser-profiles`;
-
+function makeBrowserState(): ProjectBrowserState {
   return {
     defaultProviderId: "camoufox",
     providers: [
@@ -835,12 +761,12 @@ function makeBrowserState(project: Project): ProjectBrowserState {
         setupCommand:
           "chrome --remote-debugging-port=9222 --user-data-dir=<profile>",
         description:
-          "Raw CDP provider for Browser Harness helpers and live Chrome sessions.",
+          "Raw CDP provider for dedicated local Chrome profile sessions.",
         capabilities: [
           "One websocket",
           "Real cookies",
-          "Agent-owned helpers",
-          "Domain skills",
+          "Dedicated user-data-dir",
+          "Manual DevTools attach",
         ],
         constraints: [
           "Needs dedicated user-data-dir",
@@ -848,88 +774,7 @@ function makeBrowserState(project: Project): ProjectBrowserState {
         ],
       },
     ],
-    profiles: [
-      {
-        id: `${project.id}-camoufox-research`,
-        name: "Research lane",
-        providerId: "camoufox",
-        status: "ready",
-        profilePath: `${baseProfilePath}/camoufox/research-${paddedId}`,
-        proxyLane: "Residential US",
-        locale: "en-US",
-        timezone: "America/New_York",
-        os: "windows",
-        headless: "headed",
-        persistentContext: true,
-        harnessMode: "playwright",
-        endpoint: "local Playwright context",
-        lastUsed: "Today 09:41",
-        health: 92,
-        cookieJar: "Warm login cookies",
-        targetDomains: ["github.com", "docs.github.com"],
-        tags: ["Hermes", "browser-harness", "safe-login"],
-        notes:
-          "Primary profile for logged-in research flows and account-bound browsing.",
-      },
-      {
-        id: `${project.id}-camoufox-crm`,
-        name: "CRM operator",
-        providerId: "camoufox",
-        status: "running",
-        profilePath: `${baseProfilePath}/camoufox/crm-${paddedId}`,
-        proxyLane: "Static ISP US",
-        locale: "en-US",
-        timezone: "America/Chicago",
-        os: "windows",
-        headless: "headed",
-        persistentContext: true,
-        harnessMode: "playwright",
-        endpoint: "local Playwright context",
-        lastUsed: "12 min ago",
-        health: 88,
-        cookieJar: "CRM + SSO cookies",
-        targetDomains: ["linkedin.com", "hubspot.com"],
-        tags: ["domain-skill", "crm", "humanized"],
-        notes:
-          "Dedicated account lane for repetitive CRM tasks with stable proxy identity.",
-      },
-      {
-        id: `${project.id}-camoufox-marketplace`,
-        name: "Marketplace checkout",
-        providerId: "camoufox",
-        status: "warming",
-        profilePath: `${baseProfilePath}/camoufox/marketplace-${paddedId}`,
-        proxyLane: "Residential EU",
-        locale: "en-GB",
-        timezone: "Europe/London",
-        os: "macos",
-        headless: "headed",
-        persistentContext: true,
-        harnessMode: "playwright",
-        endpoint: "local Playwright context",
-        lastUsed: "Yesterday",
-        health: 81,
-        cookieJar: "Clean warmup cookies",
-        targetDomains: ["amazon.com", "stripe.com"],
-        tags: ["checkout", "proxy-lane", "warmup"],
-        notes:
-          "Profile kept separate because marketplace flows are sensitive to identity drift.",
-      },
-    ],
-    harness: {
-      agent: "Hermes Agent",
-      outcome: "Local AGI",
-      skillRoot: `${projectRoot}/.fptclaw/browser-skills`,
-      helperPolicy:
-        "Agent may extend helpers only inside project harness scope",
-      domainSkills: 7 + (project.id % 5),
-      cdpUrl: null,
-      notes: [
-        "Camoufox profiles use persistent_context with user_data_dir.",
-        "Chrome CDP profiles will expose ws://localhost:<port> endpoints for raw Browser Harness.",
-        "Keep proxy, locale, timezone, and WebRTC aligned per profile lane.",
-      ],
-    },
+    profiles: [],
   };
 }
 
@@ -952,12 +797,12 @@ export function getProjectDetail(
     environment: pick(environments, project.id),
     model: pick(modelNames, project.id),
     mode: project.status === "Discovery" ? "Plan" : "Act",
-    messages: makeMessages(project),
+    messages: makeMessages(),
     resources: makeResources(project),
     wiki: makeWikiState(project),
     files: makeFileState(project),
     timeline: makeTimeline(project),
     git: makeGitState(project),
-    browser: makeBrowserState(project),
+    browser: makeBrowserState(),
   };
 }

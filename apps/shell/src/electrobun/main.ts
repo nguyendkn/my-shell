@@ -1,9 +1,18 @@
 import { BrowserView, BrowserWindow, Screen, Utils } from "electrobun/bun";
 import type { ShellRPCSchema } from "./rpc";
 import { startDesktopTestServer } from "./desktop-test-server";
+import {
+  createProjectBrowserProfile,
+  launchProjectBrowserProfile,
+  loadProjectBrowserProfiles,
+  verifyProjectBrowserProfile,
+  warmProjectBrowserProfile,
+} from "./browser-profiles";
 import { createProjectRuntimeBridge } from "./project-runtime";
+import { createProjectTerminalBridge } from "./project-terminal";
 import { loadRuntimeSettings, saveRuntimeSettings } from "./runtime-settings";
 import type { ProjectRuntimeEvent } from "./runtime-types";
+import type { ProjectTerminalEvent } from "./terminal-types";
 
 const desktopTestPort = Number(process.env.FPTCLAW_DESKTOP_TEST_PORT);
 const isDesktopTestMode =
@@ -49,6 +58,9 @@ function getPrimaryDisplayWorkArea() {
 const runtimeBridge = createProjectRuntimeBridge({
   emit: emitProjectRuntimeEvent,
 });
+const terminalBridge = createProjectTerminalBridge({
+  emit: emitProjectTerminalEvent,
+});
 
 const shellRPC = BrowserView.defineRPC<ShellRPCSchema>({
   maxRequestTime: Infinity,
@@ -74,6 +86,16 @@ const shellRPC = BrowserView.defineRPC<ShellRPCSchema>({
       respondProjectRuntimePermission: (params) =>
         runtimeBridge.respondPermission(params),
       getProjectRuntimeStatus: () => runtimeBridge.getStatus(),
+      startProjectTerminal: (params) =>
+        terminalBridge.startTerminal(params),
+      writeProjectTerminalInput: (params) =>
+        terminalBridge.writeTerminalInput(params),
+      stopProjectTerminal: (params) => terminalBridge.stopTerminal(params),
+      loadProjectBrowserProfiles,
+      createProjectBrowserProfile,
+      verifyProjectBrowserProfile,
+      warmProjectBrowserProfile,
+      launchProjectBrowserProfile,
       loadRuntimeSettings,
       saveRuntimeSettings,
     },
@@ -83,6 +105,10 @@ const shellRPC = BrowserView.defineRPC<ShellRPCSchema>({
 
 function emitProjectRuntimeEvent(event: ProjectRuntimeEvent) {
   shellRPC.send.projectRuntimeEvent(event);
+}
+
+function emitProjectTerminalEvent(event: ProjectTerminalEvent) {
+  shellRPC.send.projectTerminalEvent(event);
 }
 
 const mainWindow = new BrowserWindow({
@@ -109,6 +135,10 @@ if (isDesktopTestMode) {
     projectFolderPath: desktopTestProjectFolderPath,
   });
 }
+
+globalThis.addEventListener?.("beforeunload", () => {
+  terminalBridge.stopAll();
+});
 
 setTimeout(() => {
   // Windows work-area sizing keeps the app maximized without covering taskbar.

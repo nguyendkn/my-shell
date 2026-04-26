@@ -1,4 +1,5 @@
 import * as React from "react";
+import { BotIcon } from "lucide-react";
 
 import type {
   ProjectChatMessageAction,
@@ -669,13 +670,30 @@ export function ProjectChatShell({ detail }: ProjectChatShellProps) {
           role="log"
           aria-live="polite"
         >
-          {messages.map((message) => (
-            <ProjectChatMessage
-              key={message.id}
-              message={message}
-              onAction={handleMessageAction}
-            />
-          ))}
+          {messages.length === 0 ? (
+            <div
+              className="flex min-h-[min(28rem,60vh)] items-center justify-center px-3 py-10 text-center"
+              data-testid="project-chat-empty"
+            >
+              <div className="max-w-sm">
+                <span className="mx-auto flex size-10 items-center justify-center rounded-lg border bg-muted text-muted-foreground shadow-xs">
+                  <BotIcon className="size-5" />
+                </span>
+                <h2 className="mt-3 text-base font-semibold">Runtime chat</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Ready when you are.
+                </p>
+              </div>
+            </div>
+          ) : (
+            messages.map((message) => (
+              <ProjectChatMessage
+                key={message.id}
+                message={message}
+                onAction={handleMessageAction}
+              />
+            ))
+          )}
         </div>
       </div>
       <ProjectChatComposer

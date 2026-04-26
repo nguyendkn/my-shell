@@ -10,6 +10,7 @@ import {
   GlobeIcon,
   HardDriveIcon,
   Layers3Icon,
+  Loader2Icon,
   NetworkIcon,
   PlayIcon,
   SearchIcon,
@@ -37,6 +38,14 @@ import type {
   ProjectBrowserProviderId,
   ProjectDetail,
 } from "../../data/project-detail";
+import {
+  canUseNativeBrowserProfiles,
+  createProjectBrowserProfile,
+  launchProjectBrowserProfile,
+  loadProjectBrowserProfiles,
+  verifyProjectBrowserProfile,
+  warmProjectBrowserProfile,
+} from "../../lib/native-browser-profiles";
 
 export type ProjectBrowserProfilesPanelHandle = {
   createProfile: () => void;
@@ -48,6 +57,7 @@ export type ProjectBrowserProfilesPanelProps = {
 
 type ProviderFilter = "all" | ProjectBrowserProviderId;
 type ProfileStatusFilter = "all" | ProjectBrowserProfileStatus;
+type ProfileOperation = "create" | "verify" | "warm" | "launch";
 
 const statusLabel: Record<ProjectBrowserProfileStatus, string> = {
   ready: "Ready",
@@ -65,13 +75,6 @@ const statusFilters: Array<{
   { value: "warming", label: "Warming" },
   { value: "needs-setup", label: "Needs setup" },
 ];
-
-function getProjectRoot(detail: ProjectDetail) {
-  return (
-    detail.project.folderPath ??
-    `projects/${String(detail.project.id).padStart(3, "0")}`
-  ).replace(/\\/g, "/");
-}
 
 function getStatusClass(status: ProjectBrowserProfileStatus) {
   if (status === "ready") {
@@ -138,42 +141,6 @@ function getProviderProfileCount(
   providerId: ProjectBrowserProviderId,
 ) {
   return profiles.filter((profile) => profile.providerId === providerId).length;
-}
-
-function makeNewProfile(
-  detail: ProjectDetail,
-  index: number,
-): ProjectBrowserProfile {
-  const paddedProjectId = String(detail.project.id).padStart(3, "0");
-  const paddedIndex = String(index).padStart(2, "0");
-
-  return {
-    id: `${detail.project.id}-camoufox-custom-${index}`,
-    name: `Camoufox lane ${paddedIndex}`,
-    providerId: "camoufox",
-    status: "needs-setup",
-    profilePath: `${getProjectRoot(
-      detail,
-    )}/.fptclaw/browser-profiles/camoufox/custom-${paddedProjectId}-${paddedIndex}`,
-    proxyLane: "Unassigned",
-    locale: "en-US",
-    timezone: "America/New_York",
-    os: "windows",
-    headless: "headed",
-    persistentContext: true,
-    harnessMode: "playwright",
-    endpoint: "local Playwright context",
-    lastUsed: "Never",
-    health: 42,
-    cookieJar: "Empty",
-    targetDomains: [],
-    tags: ["new-profile", "camoufox"],
-    notes: "New profile lane waiting for proxy, account, and warmup policy.",
-  };
-}
-
-function getHarnessStackLabel(detail: ProjectDetail) {
-  return `Browser Harness + ${detail.browser.harness.agent} = ${detail.browser.harness.outcome}`;
 }
 
 function BrowserProviderCard({
@@ -340,9 +307,17 @@ function ProfileDataRow({
 function ProfileDetail({
   profile,
   provider,
+  operation,
+  onVerify,
+  onWarm,
+  onLaunch,
 }: {
   profile: ProjectBrowserProfile;
   provider: ProjectBrowserProvider;
+  operation: ProfileOperation | null;
+  onVerify: () => void;
+  onWarm: () => void;
+  onLaunch: () => void;
 }) {
   const isIdentityReady = profile.proxyLane !== "Unassigned";
 
@@ -528,8 +503,14 @@ function ProfileDetail({
           variant="outline"
           size="sm"
           data-testid="project-browser-profile-verify"
+          disabled={operation !== null}
+          onClick={onVerify}
         >
-          <CheckCircle2Icon />
+          {operation === "verify" ? (
+            <Loader2Icon className="animate-spin" />
+          ) : (
+            <CheckCircle2Icon />
+          )}
           Verify setup
         </Button>
         <Button
@@ -537,18 +518,30 @@ function ProfileDetail({
           variant="outline"
           size="sm"
           data-testid="project-browser-profile-launch"
+          disabled={operation !== null}
+          onClick={onLaunch}
         >
-          <PlayIcon />
-          Launch headed
+          {operation === "launch" ? (
+            <Loader2Icon className="animate-spin" />
+          ) : (
+            <PlayIcon />
+          )}
+          Check launch
         </Button>
         <Button
           type="button"
           variant="ghost"
           size="sm"
           data-testid="project-browser-profile-warm"
+          disabled={operation !== null}
+          onClick={onWarm}
         >
-          <Clock3Icon />
-          Warm profile
+          {operation === "warm" ? (
+            <Loader2Icon className="animate-spin" />
+          ) : (
+            <Clock3Icon />
+          )}
+          Prepare storage
         </Button>
       </div>
     </section>
@@ -559,23 +552,65 @@ export const ProjectBrowserProfilesPanel = React.forwardRef<
   ProjectBrowserProfilesPanelHandle,
   ProjectBrowserProfilesPanelProps
 >(function ProjectBrowserProfilesPanel({ detail }, ref) {
-  const [profiles, setProfiles] = React.useState(detail.browser.profiles);
+  const [profiles, setProfiles] = React.useState<ProjectBrowserProfile[]>([]);
   const [query, setQuery] = React.useState("");
   const [providerFilter, setProviderFilter] =
     React.useState<ProviderFilter>("all");
   const [statusFilter, setStatusFilter] =
     React.useState<ProfileStatusFilter>("all");
-  const [selectedProfileId, setSelectedProfileId] = React.useState(
-    detail.browser.profiles[0]?.id ?? "",
+  const [selectedProfileId, setSelectedProfileId] = React.useState("");
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [storagePath, setStoragePath] = React.useState<string | null>(null);
+  const [operation, setOperation] = React.useState<ProfileOperation | null>(
+    null,
+  );
+  const [statusMessage, setStatusMessage] = React.useState("");
+
+  const projectProfileParams = React.useMemo(
+    () => ({
+      projectId: detail.project.id,
+      projectName: detail.project.name,
+      cwd: detail.project.folderPath,
+    }),
+    [detail.project.folderPath, detail.project.id, detail.project.name],
   );
 
+  const reloadProfiles = React.useCallback(async () => {
+    setIsLoading(true);
+
+    if (!canUseNativeBrowserProfiles()) {
+      setProfiles([]);
+      setStoragePath(null);
+      setSelectedProfileId("");
+      setStatusMessage(
+        "Native browser profile manager is available in desktop mode.",
+      );
+      setIsLoading(false);
+      return;
+    }
+
+    const result = await loadProjectBrowserProfiles(projectProfileParams);
+
+    setProfiles(result.profiles);
+    setStoragePath(result.storagePath);
+    setSelectedProfileId(result.profiles[0]?.id ?? "");
+    setStatusMessage(
+      result.available
+        ? result.storagePath
+          ? `Profile registry: ${result.storagePath}`
+          : "Profile registry ready."
+        : result.error ?? "Browser profiles unavailable.",
+    );
+    setIsLoading(false);
+  }, [projectProfileParams]);
+
   React.useEffect(() => {
-    setProfiles(detail.browser.profiles);
     setQuery("");
     setProviderFilter("all");
     setStatusFilter("all");
-    setSelectedProfileId(detail.browser.profiles[0]?.id ?? "");
-  }, [detail]);
+    setSelectedProfileId("");
+    void reloadProfiles();
+  }, [reloadProfiles]);
 
   const providerById = React.useMemo(() => {
     return new Map(
@@ -622,18 +657,43 @@ export const ProjectBrowserProfilesPanel = React.forwardRef<
     ? providerById.get(selectedProfile.providerId)
     : undefined;
 
-  const createProfile = React.useCallback(() => {
+  const upsertProfile = React.useCallback((profile: ProjectBrowserProfile) => {
     setProfiles((currentProfiles) => {
-      const nextProfile = makeNewProfile(detail, currentProfiles.length + 1);
+      const index = currentProfiles.findIndex((item) => item.id === profile.id);
 
-      setSelectedProfileId(nextProfile.id);
-      setProviderFilter("all");
-      setStatusFilter("all");
-      setQuery("");
+      if (index === -1) {
+        return [profile, ...currentProfiles];
+      }
 
-      return [nextProfile, ...currentProfiles];
+      const copy = [...currentProfiles];
+      copy[index] = profile;
+
+      return copy;
     });
-  }, [detail]);
+    setSelectedProfileId(profile.id);
+  }, []);
+
+  const createProfile = React.useCallback(async () => {
+    setOperation("create");
+    const result = await createProjectBrowserProfile({
+      ...projectProfileParams,
+      providerId: detail.browser.defaultProviderId,
+    });
+
+    setOperation(null);
+
+    if (!result.ok || !result.profile) {
+      setStatusMessage(result.error ?? "Profile creation failed.");
+      return;
+    }
+
+    setProviderFilter("all");
+    setStatusFilter("all");
+    setQuery("");
+    setStoragePath(result.storagePath);
+    setStatusMessage(result.message ?? "Profile created.");
+    upsertProfile(result.profile);
+  }, [detail.browser.defaultProviderId, projectProfileParams, upsertProfile]);
 
   React.useImperativeHandle(
     ref,
@@ -649,7 +709,40 @@ export const ProjectBrowserProfilesPanel = React.forwardRef<
   const runningProfileCount = profiles.filter(
     (profile) => profile.status === "running",
   ).length;
-  const harnessStackLabel = getHarnessStackLabel(detail);
+  const registryStatusLabel = storagePath
+    ? "Native profile registry"
+    : "Native profile registry unavailable";
+
+  async function runProfileOperation(
+    nextOperation: Exclude<ProfileOperation, "create">,
+    profile: ProjectBrowserProfile,
+  ) {
+    setOperation(nextOperation);
+
+    const params = {
+      ...projectProfileParams,
+      profile,
+    };
+    const result =
+      nextOperation === "verify"
+        ? await verifyProjectBrowserProfile(params)
+        : nextOperation === "warm"
+          ? await warmProjectBrowserProfile(params)
+          : await launchProjectBrowserProfile(params);
+
+    setOperation(null);
+    setStoragePath(result.storagePath);
+
+    if (result.profile) {
+      upsertProfile(result.profile);
+    }
+
+    setStatusMessage(
+      result.ok
+        ? result.message ?? "Browser profile updated."
+        : result.error ?? "Browser profile operation failed.",
+    );
+  }
 
   return (
     <section
@@ -665,10 +758,10 @@ export const ProjectBrowserProfilesPanel = React.forwardRef<
               data-testid="project-browser-harness-title"
             >
               <SparklesIcon className="size-4 text-muted-foreground" />
-              {harnessStackLabel}
+              Native browser profiles
             </div>
             <p className="mt-1 truncate text-xs text-muted-foreground">
-              {detail.browser.harness.skillRoot}
+              {storagePath ?? "Open a local project folder to enable profile storage."}
             </p>
           </div>
           <div className="grid min-w-56 grid-cols-2 gap-2 sm:flex">
@@ -696,9 +789,9 @@ export const ProjectBrowserProfilesPanel = React.forwardRef<
               <div className="font-semibold">{runningProfileCount} active</div>
             </div>
             <div className="rounded-md border bg-background px-2 py-1.5 text-xs">
-              <div className="text-muted-foreground">Skills</div>
+              <div className="text-muted-foreground">Registry</div>
               <div className="font-semibold">
-                {detail.browser.harness.domainSkills} domain
+                {storagePath ? "Linked" : "Unavailable"}
               </div>
             </div>
           </div>
@@ -775,17 +868,31 @@ export const ProjectBrowserProfilesPanel = React.forwardRef<
               <h3 className="text-xs font-medium uppercase text-muted-foreground">
                 Profiles
               </h3>
-              <Badge variant="outline">
-                {filteredProfiles.length}/{profiles.length}
-              </Badge>
+              <div className="flex items-center gap-1.5">
+                {operation === "create" || isLoading ? (
+                  <Loader2Icon className="size-3.5 animate-spin text-muted-foreground" />
+                ) : null}
+                <Badge variant="outline">
+                  {filteredProfiles.length}/{profiles.length}
+                </Badge>
+              </div>
             </div>
             <div className="space-y-1.5">
-              {filteredProfiles.length === 0 ? (
+              {isLoading ? (
+                <div
+                  className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground"
+                  data-testid="project-browser-profile-loading"
+                >
+                  Loading browser profiles...
+                </div>
+              ) : filteredProfiles.length === 0 ? (
                 <div
                   className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground"
                   data-testid="project-browser-profile-empty"
                 >
-                  No browser profiles match the current filter.
+                  {profiles.length === 0
+                    ? "No project browser profiles yet."
+                    : "No browser profiles match the current filter."}
                 </div>
               ) : (
                 filteredProfiles.map((profile) => {
@@ -815,6 +922,10 @@ export const ProjectBrowserProfilesPanel = React.forwardRef<
             <ProfileDetail
               profile={selectedProfile}
               provider={selectedProvider}
+              operation={operation}
+              onVerify={() => void runProfileOperation("verify", selectedProfile)}
+              onWarm={() => void runProfileOperation("warm", selectedProfile)}
+              onLaunch={() => void runProfileOperation("launch", selectedProfile)}
             />
           ) : (
             <section className="flex min-h-64 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
@@ -830,10 +941,10 @@ export const ProjectBrowserProfilesPanel = React.forwardRef<
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-sm font-semibold">
                   <ShieldCheckIcon className="size-4 text-muted-foreground" />
-                  Harness readiness
+                  Native profile registry
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {harnessStackLabel}
+                  Filesystem-backed browser profile operations for this project.
                 </p>
               </div>
               <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
@@ -843,41 +954,36 @@ export const ProjectBrowserProfilesPanel = React.forwardRef<
                 <Badge variant="outline">
                   {runningProfileCount} running profiles
                 </Badge>
-                <Badge variant="outline">
-                  {detail.browser.harness.domainSkills} domain skills
-                </Badge>
               </div>
             </div>
             <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
               <div className="min-w-0 rounded-md bg-muted/50 px-2 py-1.5">
-                <div className="text-muted-foreground">Helper policy</div>
+                <div className="text-muted-foreground">Registry</div>
                 <div className="mt-1 truncate font-medium">
-                  {detail.browser.harness.helperPolicy}
+                  {registryStatusLabel}
                 </div>
               </div>
               <div className="min-w-0 rounded-md bg-muted/50 px-2 py-1.5">
-                <div className="text-muted-foreground">Skill root</div>
+                <div className="text-muted-foreground">Storage path</div>
                 <div className="mt-1 truncate font-medium">
-                  {detail.browser.harness.skillRoot}
+                  {storagePath ?? "Not linked"}
                 </div>
               </div>
               <div className="min-w-0 rounded-md bg-muted/50 px-2 py-1.5">
-                <div className="text-muted-foreground">CDP endpoint</div>
+                <div className="text-muted-foreground">Provider check</div>
                 <div className="mt-1 truncate font-medium">
-                  {detail.browser.harness.cdpUrl ?? "Not attached"}
+                  {statusMessage || "No operation yet"}
                 </div>
               </div>
             </div>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3">
-              {detail.browser.harness.notes.map((note) => (
-                <div
-                  key={note}
-                  className="rounded-md bg-muted/50 px-2 py-1.5 text-xs text-muted-foreground"
-                >
-                  {note}
-                </div>
-              ))}
-            </div>
+            {statusMessage ? (
+              <div
+                className="mt-2 rounded-md border bg-background px-2 py-1.5 text-xs text-muted-foreground"
+                data-testid="project-browser-profile-operation-status"
+              >
+                {statusMessage}
+              </div>
+            ) : null}
           </section>
         </main>
       </div>

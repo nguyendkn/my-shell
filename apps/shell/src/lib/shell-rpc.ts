@@ -1,4 +1,12 @@
 import type {
+  CreateProjectBrowserProfileParams,
+  LaunchProjectBrowserProfileResult,
+  LoadProjectBrowserProfilesResult,
+  ProjectBrowserProfileOperationParams,
+  ProjectBrowserProfileParams,
+  ProjectBrowserProfileResult,
+} from "../electrobun/browser-profiles-types";
+import type {
   ProjectRuntimeCancelParams,
   ProjectRuntimeCancelResult,
   ProjectRuntimeEvent,
@@ -9,6 +17,15 @@ import type {
   ProjectRuntimeTurnParams,
   ProjectRuntimeTurnResult,
 } from "../electrobun/runtime-types";
+import type {
+  ProjectTerminalEvent,
+  ProjectTerminalInputParams,
+  ProjectTerminalInputResult,
+  ProjectTerminalStartParams,
+  ProjectTerminalStartResult,
+  ProjectTerminalStopParams,
+  ProjectTerminalStopResult,
+} from "../electrobun/terminal-types";
 import type {
   SelectProjectFolderParams,
   SelectProjectFolderResult,
@@ -38,6 +55,30 @@ export type ShellWebviewRPC = {
     getProjectRuntimeStatus: (
       params: ProjectRuntimeStatusParams,
     ) => Promise<ProjectRuntimeStatusResult>;
+    startProjectTerminal: (
+      params: ProjectTerminalStartParams,
+    ) => Promise<ProjectTerminalStartResult>;
+    writeProjectTerminalInput: (
+      params: ProjectTerminalInputParams,
+    ) => Promise<ProjectTerminalInputResult>;
+    stopProjectTerminal: (
+      params: ProjectTerminalStopParams,
+    ) => Promise<ProjectTerminalStopResult>;
+    loadProjectBrowserProfiles: (
+      params: ProjectBrowserProfileParams,
+    ) => Promise<LoadProjectBrowserProfilesResult>;
+    createProjectBrowserProfile: (
+      params: CreateProjectBrowserProfileParams,
+    ) => Promise<ProjectBrowserProfileResult>;
+    verifyProjectBrowserProfile: (
+      params: ProjectBrowserProfileOperationParams,
+    ) => Promise<ProjectBrowserProfileResult>;
+    warmProjectBrowserProfile: (
+      params: ProjectBrowserProfileOperationParams,
+    ) => Promise<ProjectBrowserProfileResult>;
+    launchProjectBrowserProfile: (
+      params: ProjectBrowserProfileOperationParams,
+    ) => Promise<LaunchProjectBrowserProfileResult>;
     loadRuntimeSettings: (
       params: RuntimeSettingsLoadParams,
     ) => Promise<RuntimeSettingsLoadResult>;
@@ -45,14 +86,26 @@ export type ShellWebviewRPC = {
       params: RuntimeSettingsSaveParams,
     ) => Promise<RuntimeSettingsSaveResult>;
   };
-  addMessageListener: (
-    message: "projectRuntimeEvent",
-    listener: (event: ProjectRuntimeEvent) => void,
-  ) => void;
-  removeMessageListener: (
-    message: "projectRuntimeEvent",
-    listener: (event: ProjectRuntimeEvent) => void,
-  ) => void;
+  addMessageListener: {
+    (
+      message: "projectRuntimeEvent",
+      listener: (event: ProjectRuntimeEvent) => void,
+    ): void;
+    (
+      message: "projectTerminalEvent",
+      listener: (event: ProjectTerminalEvent) => void,
+    ): void;
+  };
+  removeMessageListener: {
+    (
+      message: "projectRuntimeEvent",
+      listener: (event: ProjectRuntimeEvent) => void,
+    ): void;
+    (
+      message: "projectTerminalEvent",
+      listener: (event: ProjectTerminalEvent) => void,
+    ): void;
+  };
 };
 
 let shellRPCPromise: Promise<ShellWebviewRPC | null> | null = null;

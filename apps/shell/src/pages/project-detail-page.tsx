@@ -220,6 +220,11 @@ export function ProjectDetailPage({
     React.useState<ProjectSidePanelTab>("wiki");
   const [activeWorkspaceTab, setActiveWorkspaceTab] =
     React.useState<ProjectWorkspaceTab>("coding-agent");
+  const [visitedWorkspaceTabs, setVisitedWorkspaceTabs] = React.useState<
+    Set<ProjectWorkspaceTab>
+  >(() => new Set(["coding-agent"]));
+  const activeWorkspaceTabRef =
+    React.useRef<ProjectWorkspaceTab>("coding-agent");
   const [isTerminalFullscreen, setIsTerminalFullscreen] =
     React.useState(false);
   const terminalPanelRef = React.useRef<ProjectTerminalPanelHandle>(null);
@@ -228,13 +233,25 @@ export function ProjectDetailPage({
   const usesSheetSidePanel = useMediaQuery(PROJECT_SIDE_PANEL_SHEET_MEDIA);
 
   React.useEffect(() => {
+    activeWorkspaceTabRef.current = activeWorkspaceTab;
+  }, [activeWorkspaceTab]);
+
+  React.useLayoutEffect(() => {
     setIsTerminalFullscreen(false);
+    setVisitedWorkspaceTabs(new Set([activeWorkspaceTabRef.current]));
   }, [projectId]);
 
   function handleWorkspaceTabChange(value: string) {
     const nextTab = value as ProjectWorkspaceTab;
 
     setActiveWorkspaceTab(nextTab);
+    setVisitedWorkspaceTabs((currentTabs) => {
+      const nextTabs = new Set(currentTabs);
+
+      nextTabs.add(nextTab);
+
+      return nextTabs;
+    });
 
     if (nextTab !== "terminal") {
       setIsTerminalFullscreen(false);
@@ -405,38 +422,42 @@ export function ProjectDetailPage({
             value="terminal"
             className="min-h-0 min-w-0 flex-1 flex-col overflow-hidden data-[state=active]:flex data-[state=inactive]:hidden"
           >
-            <React.Suspense
-              fallback={
-                <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
-                  Loading terminal...
-                </div>
-              }
-            >
-              <ProjectTerminalPanel
-                ref={terminalPanelRef}
-                detail={detail}
-                isFullscreen={isTerminalFullscreen}
-                onFullscreenChange={setIsTerminalFullscreen}
-              />
-            </React.Suspense>
+            {visitedWorkspaceTabs.has("terminal") ? (
+              <React.Suspense
+                fallback={
+                  <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
+                    Loading terminal...
+                  </div>
+                }
+              >
+                <ProjectTerminalPanel
+                  ref={terminalPanelRef}
+                  detail={detail}
+                  isFullscreen={isTerminalFullscreen}
+                  onFullscreenChange={setIsTerminalFullscreen}
+                />
+              </React.Suspense>
+            ) : null}
           </TabsContent>
           <TabsContent
             forceMount
             value="browser-profiles"
             className="min-h-0 min-w-0 flex-1 flex-col overflow-hidden data-[state=active]:flex data-[state=inactive]:hidden"
           >
-            <React.Suspense
-              fallback={
-                <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
-                  Loading browser profiles...
-                </div>
-              }
-            >
-              <ProjectBrowserProfilesPanel
-                ref={browserProfilesPanelRef}
-                detail={detail}
-              />
-            </React.Suspense>
+            {visitedWorkspaceTabs.has("browser-profiles") ? (
+              <React.Suspense
+                fallback={
+                  <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
+                    Loading browser profiles...
+                  </div>
+                }
+              >
+                <ProjectBrowserProfilesPanel
+                  ref={browserProfilesPanelRef}
+                  detail={detail}
+                />
+              </React.Suspense>
+            ) : null}
           </TabsContent>
         </Tabs>
       </main>

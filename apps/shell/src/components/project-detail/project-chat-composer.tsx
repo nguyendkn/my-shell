@@ -3,11 +3,9 @@ import {
   AtSignIcon,
   FileTextIcon,
   FolderIcon,
-  GitBranchIcon,
   LinkIcon,
   PaperclipIcon,
   PlusIcon,
-  SearchIcon,
   SendIcon,
   Settings2Icon,
   TerminalSquareIcon,
@@ -183,121 +181,32 @@ function getSlashCommands(query: string) {
   );
 }
 
-function getDirectory(path: string) {
-  const index = path.lastIndexOf("/");
-
-  if (index <= 0) {
-    return path;
-  }
-
-  return path.slice(0, index);
-}
-
 function getContextOptions(
   detail: ProjectDetail,
   query: string,
-  selectedType: ContextOptionType | null,
 ): ContextOption[] {
-  const fileOptions: ContextOption[] = detail.files.files.map((file) => ({
-    type: "file",
-    label: file.name,
-    value: `/${file.path}`,
-    description: file.summary,
-  }));
-  const folderOptions: ContextOption[] = Array.from(
-    new Set([
-      ...detail.files.files.map((file) => getDirectory(file.path)),
-      ...detail.wiki.layers.map((layer) => layer.directory),
-    ]),
-  ).map((path) => ({
-    type: "folder",
-    label: path,
-    value: `/${path}`,
-    description: "Project folder",
-  }));
-  const gitOptions: ContextOption[] = [
-    {
-      type: "git",
-      label: "Working changes",
-      value: "git-changes",
-      description: "Current uncommitted changes",
-    },
-    ...detail.git.changes.map((change) => ({
-      type: "git" as const,
-      label: change.path,
-      value: `git:${change.path}`,
-      description: change.summary,
-    })),
-  ];
+  const liveOptions: ContextOption[] = detail.project.folderPath
+    ? [
+        {
+          type: "folder",
+          label: "Project folder",
+          value: detail.project.folderPath,
+          description: detail.project.folderPath,
+        },
+      ]
+    : [];
 
-  if (!query && selectedType === "file") {
-    return fileOptions;
-  }
-
-  if (!query && selectedType === "folder") {
-    return folderOptions;
-  }
-
-  if (!query && selectedType === "git") {
-    return gitOptions;
-  }
-
-  if (!query && !selectedType) {
-    return [
-      {
-        type: "file",
-        label: "File",
-        description: "Attach a project file as context",
-      },
-      {
-        type: "folder",
-        label: "Folder",
-        description: "Attach a project folder as context",
-      },
-      {
-        type: "git",
-        label: "Git changes",
-        description: "Attach working changes or a changed file",
-      },
-      {
-        type: "problems",
-        label: "Problems",
-        value: "problems",
-        description: "Attach current project diagnostics",
-      },
-      {
-        type: "url",
-        label: "Paste URL",
-        description: "Type a URL after @ to include it",
-        disabled: true,
-      },
-    ];
+  if (!query) {
+    return liveOptions;
   }
 
   const normalizedQuery = query.toLowerCase();
-  const scopedOptions =
-    selectedType === "file"
-      ? fileOptions
-      : selectedType === "folder"
-        ? folderOptions
-        : selectedType === "git"
-          ? gitOptions
-          : [...fileOptions, ...folderOptions, ...gitOptions];
-  const matches = scopedOptions.filter((option) =>
+  const matches = liveOptions.filter((option) =>
     [option.label, option.value, option.description]
       .filter(Boolean)
       .some((value) => value?.toLowerCase().includes(normalizedQuery)),
   );
   const suggestions: ContextOption[] = [];
-
-  if ("problems".startsWith(normalizedQuery)) {
-    suggestions.push({
-      type: "problems",
-      label: "Problems",
-      value: "problems",
-      description: "Attach current project diagnostics",
-    });
-  }
 
   if (query.startsWith("http")) {
     suggestions.push({
@@ -343,8 +252,7 @@ function insertMention(
   const beforeCursor = text.slice(0, cursorPosition);
   const atIndex = beforeCursor.lastIndexOf("@");
   const beforeMention = text.substring(0, atIndex + 1);
-  const formattedValue =
-    value.startsWith("/") && value.includes(" ") ? `"${value}"` : value;
+  const formattedValue = /\s/.test(value) ? `"${value}"` : value;
   const afterPartialQuery = text.substring(atIndex + 1 + queryLength);
   const nextValue =
     beforeMention +
@@ -366,10 +274,6 @@ function getContextIcon(type: ContextOptionType) {
 
   if (type === "folder") {
     return <FolderIcon className="size-4" />;
-  }
-
-  if (type === "git") {
-    return <GitBranchIcon className="size-4" />;
   }
 
   if (type === "url") {
@@ -416,8 +320,6 @@ export function ProjectChatComposer({
   const [selectedSlashIndex, setSelectedSlashIndex] = React.useState(0);
   const [showContextMenu, setShowContextMenu] = React.useState(false);
   const [contextQuery, setContextQuery] = React.useState("");
-  const [selectedContextType, setSelectedContextType] =
-    React.useState<ContextOptionType | null>(null);
   const [selectedContextIndex, setSelectedContextIndex] = React.useState(0);
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -427,8 +329,8 @@ export function ProjectChatComposer({
     [slashQuery],
   );
   const contextOptions = React.useMemo(
-    () => getContextOptions(detail, contextQuery, selectedContextType),
-    [contextQuery, detail, selectedContextType],
+    () => getContextOptions(detail, contextQuery),
+    [contextQuery, detail],
   );
 
   React.useEffect(() => {
@@ -501,7 +403,6 @@ export function ProjectChatComposer({
       setSelectedContextIndex(0);
     } else {
       setContextQuery("");
-      setSelectedContextType(null);
       setSelectedContextIndex(0);
     }
   }
@@ -574,7 +475,6 @@ export function ProjectChatComposer({
       if (event.key === "Escape") {
         event.preventDefault();
         setShowContextMenu(false);
-        setSelectedContextType(null);
         setContextQuery("");
         return;
       }
@@ -635,25 +535,15 @@ export function ProjectChatComposer({
       return;
     }
 
-    if (!option.value) {
-      setSelectedContextType(option.type);
-      setContextQuery("");
-      setSelectedContextIndex(0);
-      setShowContextMenu(true);
-      focusComposer(cursorPosition);
-      return;
-    }
-
     const { nextValue, nextCursorPosition } = insertMention(
       value,
-      option.value,
+      option.value ?? option.label,
       contextQuery.length,
       cursorPosition,
     );
 
     updateValue(nextValue, nextCursorPosition);
     setShowContextMenu(false);
-    setSelectedContextType(null);
     focusComposer(nextCursorPosition);
   }
 
@@ -803,14 +693,11 @@ export function ProjectChatComposer({
                         </span>
                       )}
                     </span>
-                    {!option.value && !option.disabled && (
-                      <SearchIcon className="mt-0.5 size-4 text-muted-foreground" />
-                    )}
                   </button>
                 ))
               ) : (
                 <div className="px-3 py-2 text-sm text-muted-foreground">
-                  No context results found
+                  No live context results found
                 </div>
               )}
             </div>
@@ -962,15 +849,10 @@ export function ProjectChatComposer({
             </TooltipTrigger>
             <TooltipContent>Add workflow</TooltipContent>
           </Tooltip>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="min-w-0 flex-1 justify-start sm:max-w-48"
-          >
+          <div className="flex h-8 min-w-0 flex-1 items-center justify-start gap-2 rounded-md px-2 text-sm text-muted-foreground sm:max-w-48">
             <Settings2Icon />
             <span className="truncate">{model}</span>
-          </Button>
+          </div>
         </div>
         <ToggleGroup
           type="single"
