@@ -1,0 +1,20 @@
+import globals from "globals";
+import { config as baseConfig } from "./base.js";
+
+/**
+ * ESLint configuration for Bun/Node packages.
+ *
+ * @type {import("eslint").Linter.Config[]}
+ */
+export const config = [
+  ...baseConfig,
+  {
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        Bun: "readonly",
+        MACRO: "readonly",
+      },
+    },
+  },
+];
