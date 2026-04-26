@@ -10,7 +10,7 @@
   },
   "scripts": {
     "lint": "eslint . --max-warnings 0",
-    "check-types": "tsc --noEmit",
+    "check-types": "bun run ./scripts/check-service-shims.ts",
     "format": "prettier --write \"src/**/*.{ts,tsx,json}\" --ignore-path ../../.prettierignore",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,json}\" --ignore-path ../../.prettierignore"
   },

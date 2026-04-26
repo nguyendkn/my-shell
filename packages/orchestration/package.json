@@ -11,8 +11,13 @@
   "scripts": {
     "check-types": "tsc --noEmit"
   },
+  "dependencies": {
+    "@repo/schemas": "*",
+    "proper-lockfile": "*"
+  },
   "devDependencies": {
     "@repo/typescript-config": "*",
+    "@types/proper-lockfile": "*",
     "@types/bun": "^1.3.12",
     "typescript": "5.9.2"
   }
