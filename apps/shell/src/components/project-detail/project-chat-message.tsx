@@ -68,7 +68,7 @@ function getMessageClass(message: ProjectChatMessage) {
   }
 
   if (message.kind === "question") {
-    return "max-w-[92%] border-amber-200 bg-amber-50 text-amber-950";
+    return "max-w-[92%] border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-100";
   }
 
   return "max-w-[92%] bg-card text-card-foreground";
@@ -197,7 +197,7 @@ export function ProjectChatMessage({
                       className={cn(
                         "inline-flex h-7 max-w-full items-center rounded-md border px-2.5 text-[0.8rem] font-medium",
                         message.kind === "question"
-                          ? "border-amber-300 bg-amber-100/60 text-amber-950"
+                          ? "border-amber-300 bg-amber-100/60 text-amber-950 dark:border-amber-500/30 dark:bg-amber-900/40 dark:text-amber-100"
                           : "bg-background text-foreground",
                       )}
                       title={meta.title}

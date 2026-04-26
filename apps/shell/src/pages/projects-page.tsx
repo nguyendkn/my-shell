@@ -65,14 +65,14 @@ function getProjectNameFromPath(folderPath: string) {
 
 function getPriorityClass(priority: Project["priority"]) {
   if (priority === "High") {
-    return "border-red-200 bg-red-50 text-red-700";
+    return "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-950/40 dark:text-red-400";
   }
 
   if (priority === "Medium") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
+    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-400";
   }
 
-  return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-400";
 }
 
 function getStatusVariant(status: Project["status"]) {
@@ -125,7 +125,7 @@ function ProjectListItem({
       data-testid="project-row"
       tabIndex={0}
       aria-label={`Open ${project.name}`}
-      className="absolute inset-x-0 overflow-hidden rounded-lg border bg-card p-3 text-card-foreground shadow-xs transition-colors hover:bg-muted/40 sm:rounded-xl sm:p-4"
+      className="absolute inset-x-0 cursor-pointer overflow-hidden rounded-lg border bg-card p-3 text-card-foreground shadow-xs transition-colors duration-150 hover:bg-muted/50 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 sm:rounded-xl sm:p-4"
       style={{
         height: rowHeight - 12,
         transform: `translateY(${top}px)`,
@@ -184,7 +184,7 @@ function ProjectListItem({
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-muted">
             <div
-              className="h-full rounded-full bg-primary"
+              className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
               style={{ width: `${project.progress}%` }}
             />
           </div>
@@ -624,7 +624,7 @@ export function ProjectsPage({
         >
           {filteredProjects.length === 0 ? (
             <div className="flex h-44 items-center justify-center rounded-lg border border-dashed text-center text-sm text-muted-foreground">
-              No projects match the current filters.
+              No projects match the current filters. Try adjusting your search or filters.
             </div>
           ) : (
             virtualProjects.map((project, offset) => {

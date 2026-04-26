@@ -676,12 +676,12 @@ export function ProjectChatShell({ detail }: ProjectChatShellProps) {
               data-testid="project-chat-empty"
             >
               <div className="max-w-sm">
-                <span className="mx-auto flex size-10 items-center justify-center rounded-lg border bg-muted text-muted-foreground shadow-xs">
-                  <BotIcon className="size-5" />
+                <span className="mx-auto flex size-12 items-center justify-center rounded-xl border bg-primary/10 text-primary shadow-xs">
+                  <BotIcon className="size-6" />
                 </span>
-                <h2 className="mt-3 text-base font-semibold">Runtime chat</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Ready when you are.
+                <h2 className="mt-4 text-base font-semibold">Runtime chat</h2>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+                  Send a message to start working with the AI agent on this project.
                 </p>
               </div>
             </div>

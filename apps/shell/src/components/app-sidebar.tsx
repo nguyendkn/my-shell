@@ -17,10 +17,7 @@ import {
 } from "@repo/ui/components/sidebar";
 import {
   LayoutDashboardIcon,
-  ChartBarIcon,
   FolderIcon,
-  CameraIcon,
-  FileTextIcon,
   Settings2Icon,
   CircleHelpIcon,
   SearchIcon,
@@ -43,62 +40,9 @@ const data = {
       icon: <LayoutDashboardIcon />,
     },
     {
-      title: "Analytics",
-      url: "/analytics",
-      icon: <ChartBarIcon />,
-    },
-    {
       title: "Projects",
       url: "/projects",
       icon: <FolderIcon />,
-    },
-  ],
-  navClouds: [
-    {
-      title: "Capture",
-      icon: <CameraIcon />,
-      isActive: true,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Proposal",
-      icon: <FileTextIcon />,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-    {
-      title: "Prompts",
-      icon: <FileTextIcon />,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
     },
   ],
   navSecondary: [
@@ -157,8 +101,8 @@ export function AppSidebar({
               className="data-[slot=sidebar-menu-button]:p-1.5!"
             >
               <a href="#">
-                <TerminalIcon className="size-5!" />
-                <span className="text-base font-semibold">FPTClaw Agent</span>
+                <TerminalIcon className="size-5! text-primary" />
+                <span className="text-base font-semibold tracking-tight">FPTClaw Agent</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>

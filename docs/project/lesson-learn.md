@@ -140,6 +140,8 @@ nonexistent browser launch/harness behavior.
   metadata preparation, and provider prerequisite checking.
 - Web tests used seeded project data and file mentions; desktop-native terminal
   and browser profile tests must create/open a local project folder.
+- Desktop eval tests that wait only for a `TabsContent forceMount` panel can
+  match hidden DOM before the active tab toolbar has rendered.
 
 **Fix:**
 
@@ -156,6 +158,8 @@ nonexistent browser launch/harness behavior.
 - Make chat context mentions use live project folder / URL context instead of
   seeded file/git data, and convert visual-only model/settings controls into
   accurate status UI.
+- In desktop Browser Profiles tests, wait for the active-tab action button
+  `project-browser-profile-create`, not just the force-mounted panel shell.
 
 **UI/UX:** The main project workspace now behaves as three honest native flows:
 FPTClaw Agent shows real runtime status/responses, Terminal starts only when the
@@ -176,7 +180,9 @@ launched.
 **Remember:** Hidden desktop tabs must not start native processes. Browser
 profile UI must describe the operation actually performed: storage create,
 verify, prepare, or launch prerequisite check. Use desktop Cypress, not web-only
-Cypress, to prove chat runtime, Terminal, and Browser Profiles.
+Cypress, to prove chat runtime, Terminal, and Browser Profiles. In desktop eval,
+wait for active controls before clicking; a force-mounted hidden panel existing
+in the DOM is not enough.
 
 ### 2026-04-26 - Services Shim Package Gates
 

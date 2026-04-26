@@ -590,7 +590,7 @@ export function ProjectChatComposer({
 
   return (
     <footer
-      className="sticky bottom-0 z-50 w-full max-w-[100vw] shrink-0 overflow-visible border-t bg-background p-2 sm:p-3"
+      className="sticky bottom-0 z-50 w-full max-w-[100vw] shrink-0 overflow-visible border-t bg-background/95 backdrop-blur-sm p-2 sm:p-3 transition-colors duration-150"
       data-testid="project-chat-composer"
     >
       <div
@@ -753,7 +753,7 @@ export function ProjectChatComposer({
                 )}
                 <button
                   type="button"
-                  className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground opacity-0 shadow-sm transition-opacity group-hover:opacity-100 focus:opacity-100"
+                  className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground opacity-0 shadow-sm transition-opacity duration-150 group-hover:opacity-100 focus:opacity-100"
                   onClick={() => removeAttachment(attachment.id)}
                   aria-label={`Remove ${attachment.name}`}
                 >
