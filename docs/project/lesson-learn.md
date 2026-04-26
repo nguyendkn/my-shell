@@ -82,6 +82,9 @@ mode flags, a task HTML page, and `--fptclaw-browser-title=<title>`. Emit
 worker states, process title checks, worker reports, lead validation, and final
 result. Stop browser processes by matching the unique profile path after
 validation.
+- Treat user wording like `headless=false`, `headless=off`, `headless=no`, and
+  `headless=0` as headed mode; check this in chat Cypress because generic
+  `/headless/` matching silently flips the requested UI mode.
 
 **Verify:**
 
@@ -98,7 +101,8 @@ validation.
 **Remember:** Browser harness work belongs behind a native Electrobun bridge and
 a reusable browser package. Each worker must use a unique profile directory, and
 desktop Cypress should prove the chat flow plus native process marker/title
-checks. Never leave browser processes alive after validation; kill by the unique
+checks. Set Cypress request timeout longer than `/eval` timeout for long desktop
+evals. Never leave browser processes alive after validation; kill by the unique
 `--user-data-dir` marker.
 
 ### 2026-04-26 - Chat Markdown Code Fence Rendering

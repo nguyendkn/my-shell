@@ -31,6 +31,14 @@ function detectProfileCount(prompt: string) {
 }
 
 function detectMode(prompt: string): BrowserHarnessMode {
+  if (/\bheadless\s*[:=]\s*(false|0|off|no)\b/i.test(prompt)) {
+    return "headed";
+  }
+
+  if (/\b(headed|headless\s*[:=]\s*(true|1|on|yes))\b/i.test(prompt)) {
+    return /\bheaded\b/i.test(prompt) ? "headed" : "headless";
+  }
+
   if (/\b(headless|ẩn|không\s+mở\s+cửa\s*sổ)\b/i.test(prompt)) {
     return "headless";
   }

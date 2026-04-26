@@ -10,11 +10,27 @@ type DesktopEvalResponse<T> = {
   } | null;
 };
 
+type BrowserHarnessChatResult = {
+  hasElectrobun: boolean;
+  messageCount: number;
+  titleCheckCount: number;
+  workerReportCount: number;
+  processTitleMessages: string[];
+  validationText: string;
+  text: string;
+  pids: number[];
+};
+
 function desktopEval<T>(code: string, timeoutMs = 10_000) {
   return cy
-    .request<DesktopEvalResponse<T>>("POST", "/eval", {
-      code,
-      timeoutMs,
+    .request<DesktopEvalResponse<T>>({
+      method: "POST",
+      url: "/eval",
+      body: {
+        code,
+        timeoutMs,
+      },
+      timeout: timeoutMs + 5_000,
     })
     .then((response) => {
       expect(response.body.ok, response.body.error?.message).to.eq(true);
@@ -23,25 +39,41 @@ function desktopEval<T>(code: string, timeoutMs = 10_000) {
     });
 }
 
-describe("Desktop browser harness chat", () => {
-  it("spawns one Hermes lead and one browser agent per profile from chat", () => {
-    cy.request("/health")
-      .its("body")
-      .should("include", {
-        ok: true,
-        mode: "desktop",
-        domReady: true,
-      });
+function expectDesktopHealth() {
+  cy.request("/health")
+    .its("body")
+    .should("include", {
+      ok: true,
+      mode: "desktop",
+      domReady: true,
+    });
+}
 
-    desktopEval<{
-      hasElectrobun: boolean;
-      messageCount: number;
-      titleCheckCount: number;
-      workerReportCount: number;
-      validationText: string;
-      text: string;
-    }>(
-      `
+function expectNoHarnessBrowserProcesses() {
+  cy.exec(
+    [
+      "powershell.exe",
+      "-NoLogo",
+      "-NoProfile",
+      "-ExecutionPolicy Bypass",
+      "-Command",
+      '"(Get-CimInstance Win32_Process | Where-Object { $_.Name -match \'chrome|edge|msedge\' -and $_.CommandLine -like \'*--fptclaw-browser-title=*\' } | Measure-Object).Count"',
+    ].join(" "),
+    { timeout: 15_000 },
+  ).then((result) => {
+    expect(Number(result.stdout.trim() || 0)).to.eq(0);
+  });
+}
+
+function runHeadedBrowserHarnessChat({
+  prompt,
+  expectedAgents,
+}: {
+  prompt: string;
+  expectedAgents: number;
+}) {
+  return desktopEval<BrowserHarnessChatResult>(
+    `
       function setTextareaValue(selector, value) {
         const input = query(selector);
         const valueSetter = Object.getOwnPropertyDescriptor(
@@ -90,15 +122,8 @@ describe("Desktop browser harness chat", () => {
         return location.pathname.match(/^\\/projects\\/\\d+$/) && title === project.name;
       }, 15000);
 
-      const prompt = [
-        "Hermes Browser Harness Local AGI:",
-        "open 2 browser profiles headed",
-        "start https://example.com",
-        "endpoint validate browser process title and worker reports",
-      ].join(" ");
-
       await waitFor(() => query('[data-testid="project-chat-input"]'), 15000);
-      setTextareaValue('[data-testid="project-chat-input"]', prompt);
+      setTextareaValue('[data-testid="project-chat-input"]', ${JSON.stringify(prompt)});
       await waitFor(() => query('[data-testid="project-chat-send"]:not(:disabled)'), 5000);
       click('[data-testid="project-chat-send"]');
 
@@ -107,9 +132,12 @@ describe("Desktop browser harness chat", () => {
           document.querySelectorAll('[data-testid="project-chat-message"]'),
         ).map((message) => (message.textContent ?? "").replace(/\\s+/g, " ").trim());
         const text = document.body.textContent ?? "";
-        const titleCheckCount = messages.filter((message) =>
-          message.includes("Browser process title") &&
-          message.includes("Command line title marker verified: yes")
+        const processTitleMessages = messages.filter((message) =>
+          message.includes("Browser process title")
+        );
+        const titleCheckCount = processTitleMessages.filter((message) =>
+          message.includes("Command line title marker verified: yes") &&
+          message.includes("Mode: headed")
         ).length;
         const workerReportCount = messages.filter((message) =>
           message.includes("report") &&
@@ -117,11 +145,20 @@ describe("Desktop browser harness chat", () => {
         ).length;
         const validationText =
           messages.find((message) => message.includes("Lead validation passed")) ?? "";
+        const pids = Array.from(
+          new Set(
+            processTitleMessages
+              .map((message) => message.match(/PID: (\\d+)/)?.[1])
+              .filter(Boolean)
+              .map(Number)
+          ),
+        );
 
         if (
-          titleCheckCount < 2 ||
-          workerReportCount < 2 ||
-          !validationText.includes("2/2 browser agents")
+          titleCheckCount < ${expectedAgents} ||
+          workerReportCount < ${expectedAgents} ||
+          pids.length < ${expectedAgents} ||
+          !validationText.includes("${expectedAgents}/${expectedAgents} browser agents")
         ) {
           return false;
         }
@@ -131,21 +168,103 @@ describe("Desktop browser harness chat", () => {
           messageCount: messages.length,
           titleCheckCount,
           workerReportCount,
+          processTitleMessages,
           validationText,
           text,
+          pids,
         };
       }, 60000);
     `,
-      75_000,
-    ).then((result) => {
+    75_000,
+  );
+}
+
+describe("Desktop browser harness chat", () => {
+  beforeEach(() => {
+    expectDesktopHealth();
+  });
+
+  afterEach(() => {
+    expectNoHarnessBrowserProcesses();
+  });
+
+  it("runs one headed browser profile from chat and validates lead/worker reporting", () => {
+    const prompt = [
+      "Hermes Browser Harness Local AGI:",
+      "open 1 browser profile headed",
+      "start https://example.com/single-headed",
+      "endpoint validate browser process title and report back to lead",
+    ].join(" ");
+
+    runHeadedBrowserHarnessChat({ prompt, expectedAgents: 1 }).then((result) => {
       expect(result.hasElectrobun).to.eq(true);
-      expect(result.messageCount).to.be.greaterThan(5);
+      expect(result.messageCount).to.be.greaterThan(4);
+      expect(result.titleCheckCount).to.eq(1);
+      expect(result.workerReportCount).to.eq(1);
+      expect(result.pids).to.have.length(1);
+      expect(result.validationText).to.contain("Lead validation passed");
+      expect(result.text).to.contain("Hermes lead");
+      expect(result.text).to.contain("Team: 1 browser agents");
+      expect(result.text).to.contain("Mode: headed");
+      expect(result.text).to.not.contain("Mode: headless");
+      expect(result.text).to.contain("Start point: https://example.com/single-headed");
+      expect(result.text).to.contain(
+        "Endpoint: validate browser process title and report back to lead",
+      );
+      expect(result.text).to.contain("FPTClaw Browser Harness");
+    });
+  });
+
+  it("runs two headed browser profiles in parallel with one agent per profile", () => {
+    const prompt = [
+      "Hermes Browser Harness Local AGI:",
+      "open 2 browser profiles headed",
+      "start https://example.com/multi-headed",
+      "endpoint validate browser process title and worker reports",
+    ].join(" ");
+
+    runHeadedBrowserHarnessChat({ prompt, expectedAgents: 2 }).then((result) => {
+      expect(result.hasElectrobun).to.eq(true);
+      expect(result.titleCheckCount).to.eq(2);
+      expect(result.workerReportCount).to.eq(2);
+      expect(result.pids).to.have.length(2);
+      expect(new Set(result.pids).size).to.eq(2);
+      expect(result.validationText).to.contain("2/2 browser agents");
+      expect(result.text).to.contain("Team: 2 browser agents");
+      expect(result.text).to.contain("Hermes browser agent 1");
+      expect(result.text).to.contain("Hermes browser agent 2");
+      expect(result.text).to.contain("Mode: headed");
+      expect(result.text).to.not.contain("Mode: headless");
+      expect(result.text).to.contain("Start point: https://example.com/multi-headed");
+      expect(result.text).to.contain(
+        "Endpoint: validate browser process title and worker reports",
+      );
+    });
+  });
+
+  it("keeps headed mode when the prompt uses headless=false wording", () => {
+    const prompt = [
+      "Hermes agent per browser:",
+      "open 2 profiles with headless=false",
+      "start point: https://example.com/headless-false",
+      "endpoint: lead validates every headed window title",
+    ].join(" ");
+
+    runHeadedBrowserHarnessChat({ prompt, expectedAgents: 2 }).then((result) => {
+      expect(result.hasElectrobun).to.eq(true);
       expect(result.titleCheckCount).to.eq(2);
       expect(result.workerReportCount).to.eq(2);
       expect(result.validationText).to.contain("Lead validation passed");
-      expect(result.text).to.contain("Hermes lead");
       expect(result.text).to.contain("Team: 2 browser agents");
-      expect(result.text).to.contain("FPTClaw Browser Harness");
+      expect(result.text).to.contain("Mode: headed");
+      expect(result.text).to.not.contain("Mode: headless");
+      expect(result.text).to.contain("Start point: https://example.com/headless-false");
+      expect(result.text).to.contain(
+        "Endpoint: lead validates every headed window title",
+      );
+      expect(result.processTitleMessages.every((message) =>
+        message.includes("Command line title marker verified: yes"),
+      )).to.eq(true);
     });
   });
 });
