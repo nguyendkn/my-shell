@@ -14,3 +14,38 @@ code {
   font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
   font-size: 0.95em;
 }
+
+.project-chat-markdown .hljs-keyword,
+.project-chat-markdown .hljs-selector-tag,
+.project-chat-markdown .hljs-built_in {
+  color: #c084fc;
+}
+
+.project-chat-markdown .hljs-string,
+.project-chat-markdown .hljs-attr,
+.project-chat-markdown .hljs-symbol {
+  color: #86efac;
+}
+
+.project-chat-markdown .hljs-number,
+.project-chat-markdown .hljs-literal,
+.project-chat-markdown .hljs-variable {
+  color: #67e8f9;
+}
+
+.project-chat-markdown .hljs-title,
+.project-chat-markdown .hljs-section,
+.project-chat-markdown .hljs-name {
+  color: #fbbf24;
+}
+
+.project-chat-markdown .hljs-comment,
+.project-chat-markdown .hljs-quote {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.project-chat-markdown .hljs-meta,
+.project-chat-markdown .hljs-template-tag {
+  color: #fca5a5;
+}

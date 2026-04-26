@@ -131,6 +131,58 @@ describe("Project detail chat", () => {
       .should("contain.text", "Summarize the next reviewer handoff.");
   });
 
+  it("renders markdown and syntax-highlighted code fences in chat messages", () => {
+    const markdown = [
+      "### Parser check",
+      "```python",
+      "def greet(name):",
+      "    return f\"hello {name}\"",
+      "```",
+      "```typescript",
+      "const answer: number = 42",
+      "```",
+      "- **Markdown** list item",
+    ].join("\n");
+
+    cy.window().then((win) => {
+      cy.get('[data-testid="project-chat-input"]').then(($input) => {
+        const input = $input[0] as HTMLTextAreaElement;
+        const valueSetter = Object.getOwnPropertyDescriptor(
+          win.HTMLTextAreaElement.prototype,
+          "value",
+        )?.set;
+
+        valueSetter?.call(input, markdown);
+        input.dispatchEvent(new win.Event("input", { bubbles: true }));
+      });
+    });
+    cy.get('[data-testid="project-chat-send"]').should("not.be.disabled").click();
+
+    cy.get('[data-testid="project-chat-markdown"]')
+      .last()
+      .within(() => {
+        cy.get("h3").should("contain.text", "Parser check");
+        cy.get("strong").should("contain.text", "Markdown");
+      });
+    cy.get('[data-testid="project-chat-code-block"]').should("have.length", 2);
+    cy.get('[data-testid="project-chat-code-language"]')
+      .first()
+      .should("contain.text", "Python");
+    cy.get('[data-testid="project-chat-code-language"]')
+      .eq(1)
+      .should("contain.text", "TypeScript");
+    cy.contains('[data-testid="project-chat-code-block"]', "def greet")
+      .find(".hljs-keyword")
+      .should("exist");
+
+    cy.window().then((win) => {
+      expect(
+        win.document.documentElement.scrollWidth,
+        "highlighted chat markdown avoids page-level horizontal overflow",
+      ).to.be.lte(win.innerWidth);
+    });
+  });
+
   it("keeps the chat composer sticky at the fullscreen bottom edge", () => {
     cy.viewport(1920, 1080);
     visitTestProject();

@@ -57,6 +57,52 @@ approached the compaction threshold:
 
 - [2026-04-25 UI and tooling lessons](lesson-learn-archive/2026-04-25-ui-tooling.md)
 
+### 2026-04-26 - Chat Markdown Code Fence Rendering
+
+**Keywords:** `project-chat-markdown.tsx`, `marked`, `highlight.js`,
+`assistant_delta`, `assistant_message`, `project-chat-code-block`,
+`bun run --cwd apps/shell cy:run:desktop`.
+
+**Signal:** Project chat showed Python, TypeScript, JavaScript, Markdown, and
+other fenced code as plain message text instead of formatted code blocks.
+
+**Cause:**
+
+- `ProjectChatMessage` rendered `message.body` directly inside a
+  `whitespace-pre-wrap` paragraph.
+- The native runtime already emits assistant text as Markdown through the
+  stream-json bridge; the shell renderer was the missing browser-side Markdown
+  adapter.
+- Runtime's own terminal UI uses `marked` plus lazy syntax highlighting, so the
+  shell should mirror that contract without importing Ink runtime components.
+
+**Fix:**
+
+- Add a browser React Markdown renderer for chat messages using `marked` token
+  rendering and safe React nodes instead of raw HTML.
+- Render fenced code blocks with lazy `highlight.js` language chunks, language
+  headers, copy buttons, horizontal overflow containment, and compact syntax
+  colors.
+- Keep streaming assistant/reasoning messages efficient with a stable-prefix
+  parser and token cache so only the growing Markdown block is reparsed.
+- Add direct `apps/shell` dependencies on `marked` and `highlight.js`.
+
+**UI/UX:** Chat now preserves the structure users expect from coding agents:
+headings, lists, inline code, tables, links, blockquotes, and readable code
+blocks stay inside the message bubble across desktop and mobile widths.
+
+**Verify:**
+
+- `bun run --cwd apps/shell check-types`
+- `bun run --cwd apps/shell lint`
+- `bun run --cwd apps/shell cy:run -- --spec cypress/e2e/project-detail.cy.ts`
+- `bun run --cwd apps/shell cy:run:desktop`
+
+**Remember:** Runtime chat Markdown belongs in the shell renderer. Do not render
+assistant/user bodies as plain paragraphs, and do not import Ink Markdown UI
+into the browser; adapt the runtime contract with browser-safe `marked` tokens
+and lazy syntax-highlight chunks.
+
 ### 2026-04-26 - Native Runtime Chat Bridge
 
 **Signal:** Project chat needed to call `packages/runtime` natively from the

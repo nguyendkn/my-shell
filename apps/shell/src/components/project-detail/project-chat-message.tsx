@@ -15,6 +15,7 @@ import type {
   ProjectChatMessage,
   ProjectChatMessageAction,
 } from "../../data/project-detail";
+import { ProjectChatMarkdown } from "./project-chat-markdown";
 
 type ProjectChatMessageProps = {
   message: ProjectChatMessage;
@@ -106,6 +107,14 @@ export function ProjectChatMessage({
 }: ProjectChatMessageProps) {
   const isUser = message.role === "user";
   const isFailed = message.status === "failed";
+  const isStreaming =
+    message.status === "running" &&
+    (message.kind === "text" || message.kind === "reasoning");
+  const markdownTone = isUser
+    ? "user"
+    : message.role === "system"
+      ? "system"
+      : "assistant";
 
   return (
     <article
@@ -158,9 +167,11 @@ export function ProjectChatMessage({
               </Badge>
             )}
           </div>
-          <p className="mt-1 whitespace-pre-wrap text-sm leading-6">
-            {message.body}
-          </p>
+          <div className="mt-1 min-w-0">
+            <ProjectChatMarkdown streaming={isStreaming} tone={markdownTone}>
+              {message.body}
+            </ProjectChatMarkdown>
+          </div>
           {message.files && message.files.length > 0 && (
             <div
               className="mt-3 flex flex-wrap gap-1.5"
