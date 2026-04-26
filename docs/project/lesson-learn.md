@@ -52,6 +52,11 @@ goals, flow, hierarchy, accessibility, responsiveness, states, or performance.
 
 ## Resolved Cases
 
+Older full-detail lessons were moved losslessly into archives when this file
+approached the compaction threshold:
+
+- [2026-04-25 UI and tooling lessons](lesson-learn-archive/2026-04-25-ui-tooling.md)
+
 ### 2026-04-26 - Native Runtime Chat Bridge
 
 **Signal:** Project chat needed to call `packages/runtime` natively from the
@@ -72,12 +77,11 @@ SDK-looking entrypoints still threw stub errors.
   `vendor/image-processor.node`, so chat UX must surface restore-pending status
   instead of assuming the runtime is fully runnable.
 - `bun packages/runtime/src/bootstrap-entry.ts --help` can still fail after the
-  entrypoint is found when runtime dependencies are not installed; the verified
-  local root cause was `Cannot find module 'lodash-es/memoize.js' from
-'D:\Projects\MyShell\packages\runtime\src\utils\debug.ts'`. `bun install
---frozen-lockfile` also failed because workspace dependencies
-  `@repo/orchestration` and `@repo/schemas` are referenced by
-  `packages/runtime/package.json` but no matching local packages exist.
+  entrypoint is found when runtime dependencies are not installed or package
+  exports drift. Verified local failures included
+  `Cannot find module 'lodash-es/memoize.js' from
+'D:\Projects\MyShell\packages\runtime\src\utils\debug.ts'` and a later
+  `lru-cache` constructor/export mismatch.
 
 **Fix:**
 
@@ -88,6 +92,9 @@ SDK-looking entrypoints still threw stub errors.
 - Resolve runtime root via `FPTCLAW_RUNTIME_ROOT` plus ancestor search, and set
   the env from `apps/shell/scripts/electrobun.ts` so desktop builds do not depend
   on the Electrobun process cwd.
+- Keep `@repo/orchestration` and `@repo/schemas` present as workspace packages
+  when runtime references them, install dependencies, and pin/align runtime deps
+  such as `lru-cache` when package exports break the restored entrypoint.
 - Write runtime bridge traces to `apps/shell/logs/runtime-bridge.log` with
   runtime-root candidates, command exit codes, stderr, spawn args, pid, stdin
   availability, and turn exit state.
@@ -104,14 +111,105 @@ SDK-looking entrypoints still threw stub errors.
 - `bun run --cwd apps/shell cy:run -- --spec cypress/e2e/project-detail.cy.ts`
 - `bun run --cwd apps/shell cy:run:desktop`
 - `bun run --cwd packages/runtime dev:restore-check`
-- `bun packages/runtime/src/bootstrap-entry.ts --help` currently fails with the
-  `lodash-es/memoize.js` restore/dependency error above.
+- `bun packages/runtime/src/bootstrap-entry.ts --help`
+- `bun run --cwd packages/schemas check-types`
+- `bun run --cwd packages/orchestration check-types`
 
 **Remember:** Integrate `packages/runtime` through a native Electrobun process
 facade and the stream-json message contract. Do not wire the chat UI directly to
 the stub SDK facade. Always trace desktop runtime failures to
-`apps/shell/logs/runtime-bridge.log`, and keep restore-pending runtime status
-visible in the UI until the original runtime entry can load cleanly.
+`apps/shell/logs/runtime-bridge.log`, distinguish entrypoint-resolution failures
+from dependency/runtime-load failures, and keep restore-pending native-module
+status visible while `dev:restore-check` still reports missing restored sources.
+
+### 2026-04-26 - Native Terminal And Browser Profile Flow Integrity
+
+**Signal:** Chat could reach the runtime, but Terminal and Browser Profiles
+needed desktop-native behavior and the UI still had labels or actions implying
+nonexistent browser launch/harness behavior.
+
+**Cause:**
+
+- `TabsContent forceMount` mounted hidden workspace tabs, so Terminal and
+  Browser Profiles could start native work before the user opened those tabs.
+- The Terminal init effect depended on the whole `detail` object; unrelated
+  runtime/detail refreshes re-ran cleanup and killed PowerShell sessions quickly
+  with `terminal.exit` 143.
+- Browser Profiles had a create/verify path, but launch/warm wording implied a
+  started browser process. The real local behavior is filesystem registry,
+  metadata preparation, and provider prerequisite checking.
+- Web tests used seeded project data and file mentions; desktop-native terminal
+  and browser profile tests must create/open a local project folder.
+
+**Fix:**
+
+- Gate workspace tab children behind `visitedWorkspaceTabs`, and render Terminal
+  / Browser Profiles only after the tab is visited while preserving mounted
+  state afterward.
+- Stabilize Terminal lifecycle dependencies to `projectId` and `projectRoot`,
+  add native PowerShell start/input/stop/exit trace logs, and keep UI controls
+  tied to real session state.
+- Rename browser profile actions to `Prepare storage` and `Check launch`; write
+  `profiles.json`, `profile.json`, and `warmup.json`; trace create, verify,
+  prepare, and launch-check; never mark a profile `running` unless a real browser
+  process is started.
+- Make chat context mentions use live project folder / URL context instead of
+  seeded file/git data, and convert visual-only model/settings controls into
+  accurate status UI.
+
+**UI/UX:** The main project workspace now behaves as three honest native flows:
+FPTClaw Agent shows real runtime status/responses, Terminal starts only when the
+user opens it and exposes a real shell lifecycle, and Browser Profiles clearly
+communicates registry/preparation/check states without pretending a browser was
+launched.
+
+**Verify:**
+
+- `bun run --cwd apps/shell check-types`
+- `bun run --cwd apps/shell lint`
+- `bun run --cwd apps/shell cy:run -- --spec cypress/e2e/project-detail.cy.ts`
+- `bun run --cwd apps/shell cy:run:desktop`
+- Inspect `apps/shell/logs/runtime-bridge.log` for `runtime.turn.exit`
+  `exitCode:0`, `terminal.input accepted:true`, and
+  `browser_profile.launch_check launched:false`.
+
+**Remember:** Hidden desktop tabs must not start native processes. Browser
+profile UI must describe the operation actually performed: storage create,
+verify, prepare, or launch prerequisite check. Use desktop Cypress, not web-only
+Cypress, to prove chat runtime, Terminal, and Browser Profiles.
+
+### 2026-04-26 - Services Shim Package Gates
+
+**Signal:** Root `bun run check-types` and `bun run lint` failed in workspace
+packages that were not part of the shell UI change.
+
+**Cause:**
+
+- `packages/services` is a shim package of one-line re-exports into
+  `@repo/runtime/src/...`; running `tsc --noEmit` there pulls the whole restored
+  runtime source tree into services and reports runtime restoration/type errors.
+- `packages/services/eslint.config.mjs` imports `@repo/eslint-config/bun`, and
+  `packages/runtime/eslint.config.mjs` imports `@repo/eslint-config/runtime`;
+  both subpath exports must exist in `packages/eslint-config/package.json`.
+
+**Fix:**
+
+- Add `packages/services/scripts/check-service-shims.ts` and make services
+  `check-types` validate that every local/runtime re-export target exists.
+- Add shared ESLint configs `packages/eslint-config/bun.js` and
+  `packages/eslint-config/runtime.js`, then export `./bun` and `./runtime`.
+
+**Verify:**
+
+- `bun run --cwd packages/services check-types`
+- `bun run --cwd packages/services lint`
+- `bun run check-types`
+- `bun run lint`
+
+**Remember:** For shim-only packages, validate the shim contract directly
+instead of accidentally typechecking an upstream restored source tree through
+the facade package. Keep eslint-config subpath exports synchronized with every
+workspace `eslint.config.mjs` import.
 
 ### 2026-04-26 - Desktop Settings JSON Isolation
 
@@ -406,213 +504,6 @@ a compact status preview before opening the matching feature.
 **Remember:** When a collapsible inspector has feature tabs, use one global
 toggle and let the collapsed rail summarize/select features instead of adding a
 second close/open button.
-
-### 2026-04-25 - Cline-Style Chat Composer Triggers And Attachments
-
-**Signal:** Typing `/` or `@` in the project-detail chat input changed text
-only; no command menu, context menu, or attachment flow appeared.
-
-**Cause:**
-
-- The composer kept only a plain string value and submitted only text.
-- Toolbar buttons for context, files, and workflows were visual-only.
-- `ProjectDetailPage` regenerated detail data on local UI renders, which could
-  reset chat messages when toggling the side panel.
-
-**Fix:**
-
-- Port the core Cline composer state machine locally: slash detection, context
-  mention detection, accessible suggestion lists, keyboard selection, toolbar
-  triggers, selected attachments, drag/drop, and attachment-only sends.
-- Use project-detail data as the mention source for files, folders, git changes,
-  problems, and URLs.
-- Memoize project detail data so local chat state survives right-panel toggles.
-- Render empty file-filter results as an empty state instead of showing a file
-  outside the visible result set.
-
-**UI/UX:** `/` now gives immediate workflow feedback; `@` exposes project
-context instead of being a dead character; file attachments appear as compact
-Cline-style tiles before send and as file chips on sent messages. The fix
-improves user goals, task flow, visual feedback, keyboard accessibility, empty
-states, and product consistency with Cline.
-
-**Verify:**
-
-- `bun run --cwd apps/shell check-types`
-- `bun run --cwd apps/shell lint`
-- `bun run --cwd apps/shell cy:run -- --spec cypress/e2e/project-detail.cy.ts`
-- `bun run --cwd apps/shell build`
-
-**Remember:** For Cline-like chat UI, the composer is a state machine, not a
-plain textarea. If a toolbar advertises context, workflows, or attachments,
-typing the trigger and clicking the icon must produce visible, keyboard-usable
-feedback and preserve the payload through send.
-
-### 2026-04-25 - Explicit Multi-Dimensional UI/UX Optimization
-
-**Signal:** UI-facing work can be functionally complete while the reusable
-lesson only records files, commands, or implementation details.
-
-**Cause:**
-
-- UI/UX improvements are often spread across layout, copy, state handling,
-  responsiveness, and performance instead of one obvious bug fix.
-- Future agents need to know why an interface changed, not only what changed.
-
-**Fix:**
-
-- Treat UI/UX as a required analysis dimension for app-facing changes.
-- In future UI lessons, record how the agent optimized user goals, task flow,
-  information architecture, visual hierarchy, accessibility, responsive
-  behavior, loading/empty/error states, performance, and product context.
-- Prefer concise before/after reasoning tied to the changed screens or
-  components.
-
-**UI/UX:** Multi-dimensional UI/UX analysis is now part of the project agent
-protocol and the lesson template, so interface improvements must be described as
-experience improvements rather than only code changes.
-
-**Verify:**
-
-- Review `AGENTS.md` for the first-class UI/UX optimization rule.
-- Review this file for the UI/UX protocol bullet, reusable pattern category,
-  template field, and resolved case.
-
-**Remember:** For app-facing work, future agents must explain how the UI became
-clearer, faster, more accessible, more resilient, or easier to use from multiple
-user and product perspectives.
-
-### 2026-04-25 - Root Dev Desktop And Electrobun Build Lock
-
-**Signal:** `bun run dev` failed before starting with Turbo
-`package_json_parse_error`, then later failed with
-`EACCES: permission denied, rm 'apps\shell\build\dev-win-x64'`. After the
-lock was fixed, `bun run dev` could leave `launcher.exe` and bundled `bun.exe`
-running but no shell UI appeared.
-
-**Cause:**
-
-- `apps/shell/package.json` had a JavaScript-style comment, but Turbo parses
-  package manifests as strict JSON.
-- Root `dev` was routed through `turbo run dev`, while the expected workflow is
-  the shell app desktop dev script.
-- A previous Electrobun dev session can keep `build/dev-win-x64` locked on
-  Windows via `electrobun.exe`, `launcher.exe`, or the bundled `bun.exe`.
-- In flat-file dev mode, Electrobun's launcher loads
-  `Resources/app/bun/index.js`. A Bun entrypoint named `main.ts` builds to
-  `main.js`, so the app worker does not run and no `BrowserWindow` is created.
-
-**Fix:**
-
-- Keep package manifests strict JSON; do not comment scripts inside
-  `package.json`.
-- Set root `package.json` `dev` to
-  `bun run --cwd apps/shell desktop:dev`, and keep workspace-wide Turbo dev as
-  `dev:turbo` if needed.
-- If Electrobun reports `EACCES` removing `build/dev-win-x64`, run
-  `make stop` to stop stale FPTClaw/Electrobun dev processes for this project,
-  then run dev again. If no matching process remains but the generated build
-  directory is still locked, verify the resolved path is inside the workspace
-  and remove only `apps/shell/build/dev-win-x64` before rebuilding. The shell
-  Electrobun wrapper now pre-cleans that generated directory on Windows before
-  `electrobun build`.
-- Keep the Electrobun Bun entrypoint basename as `index.ts` so the build emits
-  `Resources/app/bun/index.js`. Use `src/electrobun/index.ts` as the configured
-  entrypoint and import the actual window setup from `src/electrobun/main.ts`.
-
-**Verify:**
-
-- `bunx turbo run dev --dry=json`
-- `make stop`
-- `bun run --cwd apps/shell desktop:build`
-- `Test-Path apps/shell/build/dev-win-x64/FPTClaw-dev/Resources/app/bun/index.js`
-- `bun run dev` starts Electrobun and logs `Loaded identifier:
-dev.fptclaw.agent` plus `Loading app code from flat files`, and
-  `Get-Process` shows the bundled `bun.exe` with `MainWindowTitle` `FPTClaw`.
-
-**Remember:** Root `bun run dev` is the desktop app workflow. Turbo cannot parse
-JSON comments, and Electrobun dev output can be locked by an earlier still-open
-desktop process or stale generated output. Use `make stop` before retrying dev
-when the build folder is locked; if no process exists, delete only the verified
-generated `build/dev-win-x64` directory. For Electrobun dev flat files, the
-configured Bun entrypoint must emit `index.js`.
-
-### 2026-04-25 - Electrobun Startup WebView Layout Sync
-
-**Signal:** The desktop shell opened with the bottom chat/footer area hidden.
-Maximizing the window and restoring it made the footer appear in the correct
-position.
-
-**Cause:**
-
-- The React shell used `h-svh` on the top-level sidebar layout, but the Windows
-  WebView viewport can be stale during Electrobun's first native paint.
-- The `BrowserWindow` was not retained and shown with a small post-show size
-  synchronization, so the WebView bounds were not forced to recalculate until
-  the user resized the window.
-
-**Fix:**
-
-- Use `h-full min-h-0 overflow-hidden` for the root `SidebarProvider` and
-  `SidebarInset` app shell containers in `apps/shell/src/App.tsx`.
-- Keep the `BrowserWindow` in `apps/shell/src/electrobun/main.ts`, call
-  `show()`, then nudge the native height by one pixel and restore it after the
-  window is visible.
-
-**UI/UX:** The shell now opens directly into a stable work area with the chat
-footer visible, so users do not need to maximize/restore before typing or
-seeing the bottom controls.
-
-**Verify:**
-
-- `bun run --cwd apps/shell check-types`
-- `bun run --cwd apps/shell build`
-- `bun run --cwd apps/shell desktop:build`
-- `bun run --cwd apps/shell cy:run -- --spec cypress/e2e/project-detail.cy.ts`
-
-**Remember:** For Electrobun Windows app shells, prefer full-height flex
-containers over `svh` at the app root and force one post-show WebView bounds
-sync if first paint only corrects itself after a native resize.
-
-### 2026-04-25 - Cypress Shared Config And Turbo Env
-
-**Signal:** TypeScript reported `Cannot find name 'process'` in
-`apps/shell/cypress.config.ts`, and ESLint Turbo reported
-`CYPRESS_BASE_URL is not listed as a dependency in turbo.json`.
-
-**Cause:**
-
-- Cypress config runs in a Node context, but the shell app tsconfig is scoped for
-  browser/Vite types.
-- `CYPRESS_BASE_URL` is read by the shared Cypress config, so Turbo needs it in
-  the Cypress task env list.
-- Unscoped `cy:run` or `cy:open` task definitions in root `turbo.json` apply to
-  every workspace, including packages without Cypress scripts.
-
-**Fix:**
-
-- Keep app config minimal:
-  `apps/shell/cypress.config.ts` should call `createCypressConfig()`.
-- Keep `process.env.CYPRESS_BASE_URL` inside
-  `packages/cypress/src/config.ts`, where Node types are available.
-- In `turbo.json`, scope Cypress task definitions to the workspaces that own
-  them: `@repo/cypress#cy:run`, `@repo/cypress#cy:open`, `shell#cy:run`, and
-  `shell#cy:open`.
-- When a Cypress helper terminates with `cy.wrap(undefined)`, type the chain as
-  `Cypress.Chainable<undefined>`, not `Cypress.Chainable<unknown>`.
-
-**Verify:**
-
-- `bunx eslint cypress.config.ts --max-warnings 0` from `apps/shell`
-- `bun run check-types` from `apps/shell`
-- `bun run check-types` from `packages/cypress`
-- `bunx prettier --check turbo.json apps/shell/cypress.config.ts packages/cypress/src/virtual-list.ts`
-- `bunx turbo run cy:run --dry=json`
-- `bunx turbo run cy:open --dry=json`
-
-**Remember:** Prefer moving Node-only config logic into a shared config package
-over widening browser app tsconfig types. Scope Turbo tasks when only specific
-workspaces own the scripts.
 
 ### 2026-04-26 - Electrobun Taskbar-Safe Startup Maximize
 
