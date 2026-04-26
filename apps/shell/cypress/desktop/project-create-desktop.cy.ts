@@ -143,6 +143,8 @@ describe("Desktop project creation", () => {
     desktopEval<{
       providers: number;
       profiles: number;
+      empty: boolean;
+      operationStatus: string;
       hasElectrobun: boolean;
     }>(`
       if (!location.pathname.match(/^\\/projects\\/1$/)) {
@@ -157,24 +159,31 @@ describe("Desktop project creation", () => {
         const panel = query('[data-testid="project-browser-profiles-panel"]');
         const providers = document.querySelectorAll('[data-testid="project-browser-provider"]').length;
         const profiles = document.querySelectorAll('[data-testid="project-browser-profile-row"]').length;
+        const loading = query('[data-testid="project-browser-profile-loading"]');
+        const operationStatus =
+          query('[data-testid="project-browser-profile-operation-status"]')?.textContent ?? "";
 
-        if (!panel || providers < 2 || profiles < 3) {
+        if (!panel || loading || providers < 2) {
           return false;
         }
 
         return {
           providers,
           profiles,
+          empty: Boolean(query('[data-testid="project-browser-profile-empty"]')),
+          operationStatus,
           hasElectrobun: Boolean(window.__electrobun),
         };
       });
     `).then((result) => {
       expect(result.hasElectrobun).to.eq(true);
       expect(result.providers).to.eq(2);
-      expect(result.profiles).to.be.at.least(3);
+      expect(result.profiles).to.eq(0);
+      expect(result.empty).to.eq(true);
+      expect(result.operationStatus).to.contain("Project folder is unavailable");
     });
 
-    desktopEval<{ beforeCount: number; afterCount: number; firstRow: string }>(`
+    desktopEval<{ beforeCount: number; afterCount: number; operationStatus: string }>(`
       const panel = await waitFor(
         () => query('[data-testid="project-browser-profiles-panel"]'),
         15000,
@@ -191,22 +200,23 @@ describe("Desktop project creation", () => {
       return await waitFor(() => {
         const nextPanel = query('[data-testid="project-browser-profiles-panel"]');
         const afterCount = Number(nextPanel?.dataset.profileCount ?? 0);
-        const firstRow = query('[data-testid="project-browser-profile-row"]')?.textContent ?? "";
+        const operationStatus =
+          query('[data-testid="project-browser-profile-operation-status"]')?.textContent ?? "";
 
-        if (afterCount !== beforeCount + 1 || !firstRow.includes("Camoufox lane")) {
+        if (!operationStatus.includes("Project folder is unavailable")) {
           return false;
         }
 
         return {
           beforeCount,
           afterCount,
-          firstRow,
+          operationStatus,
         };
       }, 15000);
     `).then((result) => {
-      expect(result.beforeCount).to.be.at.least(3);
-      expect(result.afterCount).to.eq(result.beforeCount + 1);
-      expect(result.firstRow).to.contain("Needs setup");
+      expect(result.beforeCount).to.eq(0);
+      expect(result.afterCount).to.eq(0);
+      expect(result.operationStatus).to.contain("Project folder is unavailable");
     });
   });
 
@@ -216,22 +226,80 @@ describe("Desktop project creation", () => {
       panes: number;
       fullscreen: string | undefined;
       toolbarButtons: Array<string | null>;
+      commandOutput: string;
       rect: { top: number; left: number; width: number; height: number };
       viewport: { width: number; height: number };
       hasElectrobun: boolean;
-    }>(`
-      if (!location.pathname.match(/^\\/projects\\/1$/)) {
-        history.pushState(null, "", "/projects/1");
+    }>(
+      `
+      if (!location.pathname.match(/^\\/projects$/)) {
+        history.pushState(null, "", "/projects");
         window.dispatchEvent(new PopStateEvent("popstate"));
       }
+
+      await waitFor(() => query('[data-testid="project-create-open"]'), 15000);
+      click('[data-testid="project-create-open"]');
+      await waitFor(() => query('[data-testid="project-create-browse"]'), 15000);
+      click('[data-testid="project-create-browse"]');
+
+      const project = await waitFor(() => {
+        const pathInput = query('[data-testid="project-create-path"]');
+        const nameInput = query('[data-testid="project-create-name"]');
+
+        if (!pathInput?.value || !nameInput?.value) {
+          return false;
+        }
+
+        return {
+          path: pathInput.value,
+          name: nameInput.value,
+        };
+      }, 15000);
+
+      click('[data-testid="project-create-submit"]');
+      await waitFor(() => {
+        const title = query('h1')?.textContent?.trim();
+
+        return location.pathname.match(/^\\/projects\\/\\d+$/) && title === project.name;
+      }, 15000);
 
       await waitFor(() => query('[data-testid="project-workspace-tab-terminal"]'), 15000);
       click('[data-testid="project-workspace-tab-terminal"]');
       await waitFor(() => query('[data-testid="project-terminal-split"]'), 15000);
 
+      function setInputValue(selector, value) {
+        const input = query(selector);
+        const valueSetter = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value",
+        )?.set;
+
+        valueSetter?.call(input, value);
+        input.dispatchEvent(
+          new InputEvent("input", {
+            bubbles: true,
+            inputType: "insertText",
+            data: value,
+          }),
+        );
+      }
+
       const toolbarButtons = Array.from(
         document.querySelectorAll('[data-testid="project-terminal-toolbar"] button'),
       ).map((button) => button.getAttribute("data-testid"));
+
+      await waitFor(() => query('[data-testid="project-terminal-command-input"]:not(:disabled)'), 15000);
+      setInputValue(
+        '[data-testid="project-terminal-command-input"]',
+        'Write-Output fptclaw-terminal-ok',
+      );
+      click('[data-testid="project-terminal-command-run"]');
+
+      const commandOutput = await waitFor(() => {
+        const text = document.body.textContent ?? "";
+
+        return text.includes("fptclaw-terminal-ok") ? text : false;
+      }, 15000);
 
       click('[data-testid="project-terminal-split"]');
       await waitFor(() => {
@@ -266,6 +334,7 @@ describe("Desktop project creation", () => {
           panes,
           fullscreen: panel.dataset.fullscreen,
           toolbarButtons,
+          commandOutput,
           rect: {
             top: rect.top,
             left: rect.left,
@@ -279,10 +348,13 @@ describe("Desktop project creation", () => {
           hasElectrobun: Boolean(window.__electrobun),
         };
       }, 15000);
-    `).then((result) => {
+    `,
+      30_000,
+    ).then((result) => {
       expect(result.hasElectrobun).to.eq(true);
       expect(result.toolbarButtons[0]).to.eq("project-terminal-fullscreen");
       expect(result.toolbarButtons[1]).to.eq("project-terminal-split");
+      expect(result.commandOutput).to.contain("fptclaw-terminal-ok");
       expect(result.terminalCount).to.be.at.least(2);
       expect(result.panes).to.eq(result.terminalCount);
       expect(result.fullscreen).to.eq("true");
@@ -317,6 +389,7 @@ describe("Desktop project creation", () => {
       status: string;
       text: string;
       messageCount: number;
+      hasEmptyState: boolean;
     }>(
       `
       if (!location.pathname.match(/^\\/projects\\/1$/)) {
@@ -338,6 +411,7 @@ describe("Desktop project creation", () => {
           status,
           text: document.body.textContent ?? "",
           messageCount: document.querySelectorAll('[data-testid="project-chat-message"]').length,
+          hasEmptyState: Boolean(query('[data-testid="project-chat-empty"]')),
         };
       }, 20000);
     `,
@@ -348,14 +422,17 @@ describe("Desktop project creation", () => {
       expect(result.text).to.not.contain(
         "Runtime package entrypoint was not found",
       );
-      expect(result.messageCount).to.be.greaterThan(4);
+      expect(result.messageCount).to.eq(0);
+      expect(result.hasEmptyState).to.eq(true);
     });
   });
 
-  it("starts a desktop chat turn without losing the runtime entrypoint", () => {
+  it("sends a desktop chat message and renders the native runtime response", () => {
     desktopEval<{
       hasElectrobun: boolean;
-      foundRuntimeStart: boolean;
+      completed: boolean;
+      messageCount: number;
+      assistantText: string;
       text: string;
     }>(
       `
@@ -406,47 +483,67 @@ describe("Desktop project creation", () => {
       );
 
       await waitFor(() => query('[data-testid="project-chat-send"]:not(:disabled)'), 5000);
-      click('[data-testid="project-chat-send"]');
+      input.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Enter",
+          code: "Enter",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      if (!document.body.textContent?.includes("/vk:ask hi")) {
+        click('[data-testid="project-chat-send"]');
+      }
 
       const result = await waitFor(() => {
         const text = document.body.textContent ?? "";
+        const messages = Array.from(
+          document.querySelectorAll('[data-testid="project-chat-message"]'),
+        ).map((message) => message.textContent ?? "");
+        const assistantText =
+          messages.find((message) => message.includes("FPTClaw Runtime")) ?? "";
+        const completed =
+          text.includes("Runtime completed") ||
+          text.includes("Runtime complete");
 
         if (text.includes("Runtime package entrypoint was not found")) {
           return {
             hasElectrobun: Boolean(window.__electrobun),
-            foundRuntimeStart: false,
+            completed,
+            messageCount: messages.length,
+            assistantText,
             text,
           };
         }
 
-        if (
-          text.includes("Runtime package") ||
-          text.includes("runtime tools ready") ||
-          text.includes("Runtime initialized")
-        ) {
+        if (completed && assistantText.length > "FPTClaw Runtime".length + 8) {
           return {
             hasElectrobun: Boolean(window.__electrobun),
-            foundRuntimeStart: true,
+            completed,
+            messageCount: messages.length,
+            assistantText,
             text,
           };
         }
 
         return false;
-      }, 20000);
-
-      if (query('[data-testid="project-chat-send"]')) {
-        click('[data-testid="project-chat-send"]');
-      }
+      }, 90000);
 
       return result;
     `,
-      25_000,
+      100_000,
     ).then((result) => {
       expect(result.hasElectrobun).to.eq(true);
       expect(result.text).to.not.contain(
         "Runtime package entrypoint was not found",
       );
-      expect(result.foundRuntimeStart).to.eq(true);
+      expect(result.text).to.not.contain("Runtime unavailable");
+      expect(result.completed).to.eq(true);
+      expect(result.messageCount).to.be.greaterThan(1);
+      expect(result.assistantText).to.contain("FPTClaw Runtime");
     });
   });
 });

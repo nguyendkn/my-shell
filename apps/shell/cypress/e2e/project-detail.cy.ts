@@ -64,26 +64,55 @@ function expectChatComposerPinnedToViewport() {
   });
 }
 
+const CUSTOM_PROJECTS_STORAGE_KEY = "fptclaw.custom-projects.v1";
+const TEST_PROJECT_ID = 1001;
+const TEST_PROJECT_NAME = "FPTClaw Runtime Test";
+const TEST_PROJECT_FOLDER = "D:/Projects/MyShell";
+const TEST_PROJECT_ROUTE = `/projects/${TEST_PROJECT_ID}`;
+const TEST_PROJECT = {
+  id: TEST_PROJECT_ID,
+  name: TEST_PROJECT_NAME,
+  description: "Local project workspace opened from a selected folder.",
+  owner: "Local workspace",
+  folderPath: TEST_PROJECT_FOLDER,
+  status: "Active",
+  priority: "Medium",
+  progress: 0,
+  documents: 0,
+  tasks: 0,
+  updatedAt: "2026-04-26",
+};
+
+function visitTestProject(path = TEST_PROJECT_ROUTE) {
+  cy.visit(path, {
+    onBeforeLoad(win) {
+      win.localStorage.setItem(
+        CUSTOM_PROJECTS_STORAGE_KEY,
+        JSON.stringify([TEST_PROJECT]),
+      );
+    },
+  });
+}
+
 describe("Project detail chat", () => {
   beforeEach(() => {
     cy.viewport(1280, 900);
-    cy.visit("/projects/1");
+    visitTestProject();
   });
 
   it("renders project detail from the route id with a chat-style layout", () => {
-    cy.location("pathname").should("eq", "/projects/1");
-    cy.contains("h1", "FPTClaw Workspace 001").should("be.visible");
-    cy.contains("Prepare FPTClaw Workspace 001 for reviewer handoff").should(
+    cy.location("pathname").should("eq", TEST_PROJECT_ROUTE);
+    cy.contains("h1", TEST_PROJECT_NAME).should("be.visible");
+    cy.contains("Local project workspace opened from a selected folder.").should(
       "be.visible",
     );
+    cy.contains(TEST_PROJECT_FOLDER).should("be.visible");
+    cy.contains("Local folder linked").should("be.visible");
     cy.get('[data-testid="project-chat-scroller"]').should("be.visible");
-    cy.get('[data-testid="project-chat-message"]').should(
-      "have.length.greaterThan",
-      4,
-    );
-    cy.get('[data-testid="project-chat-scroller"]')
-      .scrollTo("bottom")
-      .should("contain.text", "Should I prioritize reviewer comments first");
+    cy.get('[data-testid="project-chat-empty"]')
+      .should("be.visible")
+      .and("contain.text", "Runtime chat");
+    cy.get('[data-testid="project-chat-message"]').should("not.exist");
   });
 
   it("appends a sent message to the project chat", () => {
@@ -104,9 +133,11 @@ describe("Project detail chat", () => {
 
   it("keeps the chat composer sticky at the fullscreen bottom edge", () => {
     cy.viewport(1920, 1080);
-    cy.visit("/projects/1");
+    visitTestProject();
 
-    cy.get('[data-testid="project-chat-scroller"]').scrollTo("top");
+    cy.get('[data-testid="project-chat-scroller"]').scrollTo("top", {
+      ensureScrollable: false,
+    });
     expectChatComposerPinnedToViewport();
 
     cy.get('[data-testid="project-side-panel-toggle"]').click();
@@ -116,7 +147,7 @@ describe("Project detail chat", () => {
 
   it("keeps the project detail workspace inside the mobile viewport", () => {
     cy.viewport(390, 844);
-    cy.visit("/projects/1");
+    visitTestProject();
 
     cy.window().then((win) => {
       expect(
@@ -136,7 +167,7 @@ describe("Project detail chat", () => {
 
   it("opens project inspector features from the mobile detail header", () => {
     cy.viewport(390, 844);
-    cy.visit("/projects/1");
+    visitTestProject();
 
     cy.get('[data-testid="project-side-panel"]').should("not.exist");
     cy.get('[data-testid="project-side-panel-toggle"]').click();
@@ -162,19 +193,18 @@ describe("Project detail chat", () => {
     );
   });
 
-  it("shows context mentions and inserts a project file reference", () => {
+  it("shows context mentions and inserts the linked project folder", () => {
     cy.get('[data-testid="project-chat-input"]').type("@");
 
     cy.get('[data-testid="project-context-menu"]').should("be.visible");
-    cy.contains('[data-testid="project-context-option"]', "File").click();
     cy.contains(
       '[data-testid="project-context-option"]',
-      "FPTClaw Workspace 001 source brief.pdf",
+      "Project folder",
     ).click();
 
     cy.get('[data-testid="project-chat-input"]').should(
       "have.value",
-      "@/projects/001/raw/source-brief.pdf ",
+      `@${TEST_PROJECT_FOLDER} `,
     );
   });
 
@@ -269,37 +299,31 @@ describe("Project detail chat", () => {
     cy.get('[data-testid="project-side-panel"]').should("not.exist");
     cy.get('[data-testid="project-browser-profiles-panel"]')
       .should("be.visible")
-      .and("have.attr", "data-profile-count", "3");
+      .and("have.attr", "data-profile-count", "0");
+    cy.get('[data-testid="project-browser-harness-title"]').should(
+      "have.text",
+      "Native browser profiles",
+    );
     cy.get('[data-testid="project-browser-provider"]').should("have.length", 2);
-    cy.get('[data-testid="project-browser-profile-row"]').should(
-      "have.length",
-      3,
-    );
-
-    cy.contains('[data-testid="project-browser-profile-row"]', "Research lane")
-      .click()
-      .should("have.attr", "aria-pressed", "true");
-    cy.get('[data-testid="project-browser-profile-detail"]').should(
+    cy.get('[data-testid="project-browser-profile-empty"]')
+      .should("be.visible")
+      .and("contain.text", "No project browser profiles yet");
+    cy.get('[data-testid="project-browser-profile-row"]').should("not.exist");
+    cy.get('[data-testid="project-browser-profile-operation-status"]').should(
       "contain.text",
-      "Research lane",
+      "desktop mode",
     );
 
-    cy.get('[data-testid="project-browser-profile-search"]').type("crm");
-    cy.get('[data-testid="project-browser-profile-row"]')
-      .should("have.length", 1)
-      .and("contain.text", "CRM operator");
-
-    cy.get('[data-testid="project-browser-profile-search"]').clear();
     cy.get('[data-testid="project-browser-profile-create"]').click();
     cy.get('[data-testid="project-browser-profiles-panel"]').should(
       "have.attr",
       "data-profile-count",
-      "4",
+      "0",
     );
-    cy.get('[data-testid="project-browser-profile-row"]')
-      .first()
-      .should("contain.text", "Camoufox lane")
-      .and("contain.text", "Needs setup");
+    cy.get('[data-testid="project-browser-profile-operation-status"]').should(
+      "contain.text",
+      "Native browser profile bridge",
+    );
   });
 
   it("returns to the virtualized project list", () => {
@@ -392,7 +416,7 @@ describe("Project detail chat", () => {
     cy.get('[data-testid="project-git-ai-message"]').click();
     cy.get('[data-testid="project-git-commit-message"]').should(
       "contain.value",
-      "Update FPTClaw Workspace 001 handoff",
+      `Update ${TEST_PROJECT_NAME} handoff`,
     );
   });
 });
