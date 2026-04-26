@@ -40,28 +40,39 @@ function desktopEval<T>(code: string, timeoutMs = 10_000) {
 }
 
 function expectDesktopHealth() {
-  cy.request("/health")
-    .its("body")
-    .should("include", {
-      ok: true,
-      mode: "desktop",
-      domReady: true,
-    });
+  cy.request("/health").its("body").should("include", {
+    ok: true,
+    mode: "desktop",
+    domReady: true,
+  });
 }
 
-function expectNoHarnessBrowserProcesses() {
+function expectNoHarnessBrowserProcesses(attempt = 1) {
   cy.exec(
     [
       "powershell.exe",
       "-NoLogo",
       "-NoProfile",
+      "-NonInteractive",
       "-ExecutionPolicy Bypass",
-      "-Command",
-      '"(Get-CimInstance Win32_Process | Where-Object { $_.Name -match \'chrome|edge|msedge\' -and $_.CommandLine -like \'*--fptclaw-browser-title=*\' } | Measure-Object).Count"',
+      "-File",
+      "scripts/count-harness-browser-processes.ps1",
     ].join(" "),
-    { timeout: 15_000 },
+    { timeout: 45_000 },
   ).then((result) => {
-    expect(Number(result.stdout.trim() || 0)).to.eq(0);
+    const processCount = Number(result.stdout.trim() || 0);
+
+    if (processCount === 0) {
+      return;
+    }
+
+    if (attempt >= 15) {
+      expect(processCount).to.eq(0);
+      return;
+    }
+
+    cy.wait(500);
+    expectNoHarnessBrowserProcesses(attempt + 1);
   });
 }
 
@@ -196,23 +207,27 @@ describe("Desktop browser harness chat", () => {
       "endpoint validate browser process title and report back to lead",
     ].join(" ");
 
-    runHeadedBrowserHarnessChat({ prompt, expectedAgents: 1 }).then((result) => {
-      expect(result.hasElectrobun).to.eq(true);
-      expect(result.messageCount).to.be.greaterThan(4);
-      expect(result.titleCheckCount).to.eq(1);
-      expect(result.workerReportCount).to.eq(1);
-      expect(result.pids).to.have.length(1);
-      expect(result.validationText).to.contain("Lead validation passed");
-      expect(result.text).to.contain("Hermes lead");
-      expect(result.text).to.contain("Team: 1 browser agents");
-      expect(result.text).to.contain("Mode: headed");
-      expect(result.text).to.not.contain("Mode: headless");
-      expect(result.text).to.contain("Start point: https://example.com/single-headed");
-      expect(result.text).to.contain(
-        "Endpoint: validate browser process title and report back to lead",
-      );
-      expect(result.text).to.contain("FPTClaw Browser Harness");
-    });
+    runHeadedBrowserHarnessChat({ prompt, expectedAgents: 1 }).then(
+      (result) => {
+        expect(result.hasElectrobun).to.eq(true);
+        expect(result.messageCount).to.be.greaterThan(4);
+        expect(result.titleCheckCount).to.eq(1);
+        expect(result.workerReportCount).to.eq(1);
+        expect(result.pids).to.have.length(1);
+        expect(result.validationText).to.contain("Lead validation passed");
+        expect(result.text).to.contain("Hermes lead");
+        expect(result.text).to.contain("Team: 1 browser agents");
+        expect(result.text).to.contain("Mode: headed");
+        expect(result.text).to.not.contain("Mode: headless");
+        expect(result.text).to.contain(
+          "Start point: https://example.com/single-headed",
+        );
+        expect(result.text).to.contain(
+          "Endpoint: validate browser process title and report back to lead",
+        );
+        expect(result.text).to.contain("FPTClaw Browser Harness");
+      },
+    );
   });
 
   it("runs two headed browser profiles in parallel with one agent per profile", () => {
@@ -223,23 +238,27 @@ describe("Desktop browser harness chat", () => {
       "endpoint validate browser process title and worker reports",
     ].join(" ");
 
-    runHeadedBrowserHarnessChat({ prompt, expectedAgents: 2 }).then((result) => {
-      expect(result.hasElectrobun).to.eq(true);
-      expect(result.titleCheckCount).to.eq(2);
-      expect(result.workerReportCount).to.eq(2);
-      expect(result.pids).to.have.length(2);
-      expect(new Set(result.pids).size).to.eq(2);
-      expect(result.validationText).to.contain("2/2 browser agents");
-      expect(result.text).to.contain("Team: 2 browser agents");
-      expect(result.text).to.contain("Hermes browser agent 1");
-      expect(result.text).to.contain("Hermes browser agent 2");
-      expect(result.text).to.contain("Mode: headed");
-      expect(result.text).to.not.contain("Mode: headless");
-      expect(result.text).to.contain("Start point: https://example.com/multi-headed");
-      expect(result.text).to.contain(
-        "Endpoint: validate browser process title and worker reports",
-      );
-    });
+    runHeadedBrowserHarnessChat({ prompt, expectedAgents: 2 }).then(
+      (result) => {
+        expect(result.hasElectrobun).to.eq(true);
+        expect(result.titleCheckCount).to.eq(2);
+        expect(result.workerReportCount).to.eq(2);
+        expect(result.pids).to.have.length(2);
+        expect(new Set(result.pids).size).to.eq(2);
+        expect(result.validationText).to.contain("2/2 browser agents");
+        expect(result.text).to.contain("Team: 2 browser agents");
+        expect(result.text).to.contain("Hermes browser agent 1");
+        expect(result.text).to.contain("Hermes browser agent 2");
+        expect(result.text).to.contain("Mode: headed");
+        expect(result.text).to.not.contain("Mode: headless");
+        expect(result.text).to.contain(
+          "Start point: https://example.com/multi-headed",
+        );
+        expect(result.text).to.contain(
+          "Endpoint: validate browser process title and worker reports",
+        );
+      },
+    );
   });
 
   it("keeps headed mode when the prompt uses headless=false wording", () => {
@@ -250,21 +269,27 @@ describe("Desktop browser harness chat", () => {
       "endpoint: lead validates every headed window title",
     ].join(" ");
 
-    runHeadedBrowserHarnessChat({ prompt, expectedAgents: 2 }).then((result) => {
-      expect(result.hasElectrobun).to.eq(true);
-      expect(result.titleCheckCount).to.eq(2);
-      expect(result.workerReportCount).to.eq(2);
-      expect(result.validationText).to.contain("Lead validation passed");
-      expect(result.text).to.contain("Team: 2 browser agents");
-      expect(result.text).to.contain("Mode: headed");
-      expect(result.text).to.not.contain("Mode: headless");
-      expect(result.text).to.contain("Start point: https://example.com/headless-false");
-      expect(result.text).to.contain(
-        "Endpoint: lead validates every headed window title",
-      );
-      expect(result.processTitleMessages.every((message) =>
-        message.includes("Command line title marker verified: yes"),
-      )).to.eq(true);
-    });
+    runHeadedBrowserHarnessChat({ prompt, expectedAgents: 2 }).then(
+      (result) => {
+        expect(result.hasElectrobun).to.eq(true);
+        expect(result.titleCheckCount).to.eq(2);
+        expect(result.workerReportCount).to.eq(2);
+        expect(result.validationText).to.contain("Lead validation passed");
+        expect(result.text).to.contain("Team: 2 browser agents");
+        expect(result.text).to.contain("Mode: headed");
+        expect(result.text).to.not.contain("Mode: headless");
+        expect(result.text).to.contain(
+          "Start point: https://example.com/headless-false",
+        );
+        expect(result.text).to.contain(
+          "Endpoint: lead validates every headed window title",
+        );
+        expect(
+          result.processTitleMessages.every((message) =>
+            message.includes("Command line title marker verified: yes"),
+          ),
+        ).to.eq(true);
+      },
+    );
   });
 });

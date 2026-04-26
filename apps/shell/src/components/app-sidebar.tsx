@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTheme } from "next-themes";
 
 import { NavDocuments } from "./nav-documents";
 import { NavMain } from "./nav-main";
@@ -10,12 +11,15 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@repo/ui/components/sidebar";
 import {
+  BotIcon,
   LayoutDashboardIcon,
   FolderIcon,
   Settings2Icon,
@@ -24,13 +28,14 @@ import {
   DatabaseIcon,
   FileChartColumnIcon,
   FileIcon,
-  TerminalIcon,
+  MoonIcon,
+  SunIcon,
 } from "lucide-react";
 
 const data = {
   user: {
-    name: "shadcn",
-    email: "m@example.com",
+    name: "Operator",
+    email: "operator@fptclaw",
     avatar: "",
   },
   navMain: [
@@ -91,6 +96,9 @@ export function AppSidebar({
   onNavigate,
   ...props
 }: AppSidebarProps) {
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDarkTheme = resolvedTheme === "dark";
+
   return (
     <Sidebar collapsible="offcanvas" data-testid="app-sidebar" {...props}>
       <SidebarHeader>
@@ -98,11 +106,20 @@ export function AppSidebar({
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              className="data-[slot=sidebar-menu-button]:p-1.5!"
+              className="h-auto data-[slot=sidebar-menu-button]:p-2!"
             >
               <a href="#">
-                <TerminalIcon className="size-5! text-primary" />
-                <span className="text-base font-semibold tracking-tight">FPTClaw Agent</span>
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                  <BotIcon className="size-4!" />
+                </span>
+                <span className="flex min-w-0 flex-col leading-tight">
+                  <span className="truncate text-sm font-semibold tracking-tight">
+                    FPTClaw Agent
+                  </span>
+                  <span className="truncate text-xs font-normal text-muted-foreground">
+                    Operator console
+                  </span>
+                </span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -128,6 +145,22 @@ export function AppSidebar({
           }))}
           className="mt-auto"
         />
+        <SidebarGroup className="pt-0">
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  type="button"
+                  tooltip="Toggle theme"
+                  onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
+                >
+                  {isDarkTheme ? <SunIcon /> : <MoonIcon />}
+                  <span>{isDarkTheme ? "Light theme" : "Dark theme"}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />

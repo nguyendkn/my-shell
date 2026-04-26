@@ -206,9 +206,17 @@ function App() {
       ? "Dashboard"
       : currentPath === "/settings"
         ? "Settings"
-      : isProjectDetail
-        ? (currentProject?.name ?? "Project not found")
-        : "Projects";
+        : isProjectDetail
+          ? (currentProject?.name ?? "Project not found")
+          : "Projects";
+  const headerSubtitle =
+    currentPath === "/dashboard"
+      ? "Operational overview"
+      : currentPath === "/settings"
+        ? "Claude-compatible runtime settings"
+        : isProjectDetail
+          ? (currentProject?.folderPath ?? "Project workspace")
+          : `${projects.length.toLocaleString()} workspaces`;
 
   useEffect(() => {
     setIsAppSidebarOpen(!isProjectDetail);
@@ -237,7 +245,7 @@ function App() {
   return (
     <ThemeProvider
       attribute="class"
-      defaultTheme="light"
+      defaultTheme="dark"
       enableSystem={false}
       disableTransitionOnChange
     >
@@ -270,6 +278,7 @@ function App() {
             >
               <SiteHeader
                 title={headerTitle}
+                subtitle={headerSubtitle}
                 leading={
                   isProjectDetail ? (
                     <Button

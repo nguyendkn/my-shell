@@ -10,7 +10,6 @@ import {
   SearchIcon,
 } from "lucide-react";
 
-import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import {
   Dialog,
@@ -27,6 +26,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@repo/ui/components/native-select";
+import { PriorityBadge, StatusBadge } from "../components/status-badges";
 import { projects as sampleProjects, type Project } from "../data/projects";
 import { selectProjectFolder } from "../lib/native-projects";
 
@@ -61,22 +61,6 @@ function getProjectNameFromPath(folderPath: string) {
   const pathParts = normalizedPath.split(/[\\/]/).filter(Boolean);
 
   return pathParts.at(-1) ?? "";
-}
-
-function getPriorityClass(priority: Project["priority"]) {
-  if (priority === "High") {
-    return "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-950/40 dark:text-red-400";
-  }
-
-  if (priority === "Medium") {
-    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-400";
-  }
-
-  return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-400";
-}
-
-function getStatusVariant(status: Project["status"]) {
-  return status === "Active" ? "default" : "outline";
 }
 
 function shouldLoadMore(scroller: HTMLDivElement) {
@@ -144,15 +128,8 @@ function ProjectListItem({
             <h2 className="w-full truncate text-sm font-semibold sm:w-auto sm:text-base">
               {project.name}
             </h2>
-            <Badge variant={getStatusVariant(project.status)}>
-              {project.status}
-            </Badge>
-            <Badge
-              variant="outline"
-              className={getPriorityClass(project.priority)}
-            >
-              {project.priority}
-            </Badge>
+            <StatusBadge status={project.status} />
+            <PriorityBadge priority={project.priority} />
           </div>
           <p className="mt-2 line-clamp-1 text-sm text-muted-foreground">
             {project.description}
@@ -424,10 +401,12 @@ export function ProjectsPage({
   const [viewportHeight, setViewportHeight] = React.useState(640);
   const [viewportWidth, setViewportWidth] = React.useState(768);
   const [query, setQuery] = React.useState("");
-  const [statusFilter, setStatusFilter] =
-    React.useState<Project["status"] | "All">("All");
-  const [priorityFilter, setPriorityFilter] =
-    React.useState<Project["priority"] | "All">("All");
+  const [statusFilter, setStatusFilter] = React.useState<
+    Project["status"] | "All"
+  >("All");
+  const [priorityFilter, setPriorityFilter] = React.useState<
+    Project["priority"] | "All"
+  >("All");
   const [sortKey, setSortKey] = React.useState<ProjectSortKey>("updated");
   const filteredProjects = React.useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -624,7 +603,8 @@ export function ProjectsPage({
         >
           {filteredProjects.length === 0 ? (
             <div className="flex h-44 items-center justify-center rounded-lg border border-dashed text-center text-sm text-muted-foreground">
-              No projects match the current filters. Try adjusting your search or filters.
+              No projects match the current filters. Try adjusting your search
+              or filters.
             </div>
           ) : (
             virtualProjects.map((project, offset) => {

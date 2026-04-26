@@ -59,7 +59,8 @@ Routes:
 
 The app always wraps content in:
 
-- `ThemeProvider` from `next-themes`, currently fixed to light theme by default.
+- `ThemeProvider` from `next-themes`, defaulting to the dark operator theme with
+  a sidebar toggle for dark/light mode.
 - `TooltipProvider` from the shared UI package.
 - `SidebarProvider` and `SidebarInset` from `@repo/ui/components/sidebar`.
 - A lazily loaded `Toaster` for notifications.
@@ -81,6 +82,7 @@ projects from `apps/shell/src/data/projects.ts`.
 It includes:
 
 - Product identity: `FPTClaw Agent`.
+- Operator subtitle and theme toggle.
 - Primary nav: Dashboard and Projects.
 - Document shortcuts: Data Library, Reports, Word Assistant.
 - Secondary nav: Settings, Get Help, Search.
@@ -97,6 +99,7 @@ other document/help/search/user menu entries are presentational placeholders.
 - separator,
 - optional leading action,
 - current page title,
+- optional route subtitle,
 - optional right-side actions.
 
 On project detail pages, `leading` is the back-to-projects button and `actions`
@@ -162,7 +165,9 @@ User-visible capabilities:
 
 Performance behavior:
 
-- The generated project dataset has 1000 rows.
+- The generated project dataset has 1000 Lovable-inspired operator workspaces
+  with deterministic names, owners, local-style folder paths, statuses, and
+  priorities.
 - The list only loads 40 items at a time.
 - Manual virtualization renders only visible rows plus overscan.
 - Additional pages load when scroll position reaches 75 percent of list height.

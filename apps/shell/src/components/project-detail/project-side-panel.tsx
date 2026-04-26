@@ -1,8 +1,6 @@
 import * as React from "react";
 import {
   BookOpenIcon,
-  CheckIcon,
-  CircleIcon,
   ClockIcon,
   FileTextIcon,
   FolderIcon,
@@ -12,10 +10,8 @@ import {
   UsersIcon,
 } from "lucide-react";
 
-import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import { Progress } from "@repo/ui/components/progress";
-import { Separator } from "@repo/ui/components/separator";
 import {
   Tabs,
   TabsContent,
@@ -23,7 +19,10 @@ import {
   TabsTrigger,
 } from "@repo/ui/components/tabs";
 import { cn } from "@repo/ui/lib/utils";
+import { StatusBadge } from "../status-badges";
 import type { ProjectDetail } from "../../data/project-detail";
+import { ProjectContextPanel } from "./project-context-panel";
+import { ProjectTimelinePanel } from "./project-timeline-panel";
 
 const ProjectGitPanel = React.lazy(() =>
   import("./project-git-panel").then((module) => ({
@@ -157,22 +156,6 @@ type ProjectSidePanelProps = {
   mode?: "desktop" | "sheet";
 };
 
-function TimelineIcon({
-  state,
-}: {
-  state: ProjectDetail["timeline"][number]["state"];
-}) {
-  if (state === "done") {
-    return <CheckIcon className="size-3" />;
-  }
-
-  if (state === "current") {
-    return <ClockIcon className="size-3" />;
-  }
-
-  return <CircleIcon className="size-3" />;
-}
-
 export function ProjectSidePanel({
   detail,
   activeTab,
@@ -191,7 +174,7 @@ export function ProjectSidePanel({
       )}
       data-testid="project-side-panel"
     >
-      <div className="shrink-0 border-b p-4">
+      <div className="shrink-0 border-b bg-[var(--surface)] p-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h2 className="truncate text-sm font-semibold">{project.name}</h2>
@@ -200,11 +183,7 @@ export function ProjectSidePanel({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Badge
-              variant={project.status === "Active" ? "default" : "outline"}
-            >
-              {project.status}
-            </Badge>
+            <StatusBadge status={project.status} />
             <Button
               type="button"
               variant="ghost"
@@ -218,7 +197,7 @@ export function ProjectSidePanel({
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2">
-          <div className="rounded-md border p-3">
+          <div className="rounded-md border bg-background/70 p-3">
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <FileTextIcon className="size-3.5" />
               Documents
@@ -227,7 +206,7 @@ export function ProjectSidePanel({
               {project.documents}
             </div>
           </div>
-          <div className="rounded-md border p-3">
+          <div className="rounded-md border bg-background/70 p-3">
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <ListTodoIcon className="size-3.5" />
               Tasks
@@ -290,74 +269,12 @@ export function ProjectSidePanel({
           </React.Suspense>
         </TabsContent>
 
-        <TabsContent value="context" className="min-h-0 overflow-auto p-4">
-          <div className="space-y-4">
-            <section>
-              <h3 className="text-xs font-medium uppercase text-muted-foreground">
-                Resources
-              </h3>
-              <div className="mt-2 space-y-2">
-                {detail.resources.map((resource) => (
-                  <div
-                    key={resource.name}
-                    className="rounded-md border bg-card p-3 text-card-foreground"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-medium">
-                        {resource.name}
-                      </span>
-                      <Badge variant="outline">{resource.type}</Badge>
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Updated {resource.updatedAt}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </section>
-            <Separator />
-            <section>
-              <h3 className="text-xs font-medium uppercase text-muted-foreground">
-                Collaborators
-              </h3>
-              <div className="mt-2 flex items-center gap-2 rounded-md border p-3">
-                <span className="inline-flex size-8 items-center justify-center rounded-md bg-muted">
-                  <UsersIcon className="size-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {project.owner}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Lead reviewer</p>
-                </div>
-              </div>
-            </section>
-          </div>
+        <TabsContent value="context" className="min-h-0 overflow-auto">
+          <ProjectContextPanel detail={detail} />
         </TabsContent>
 
-        <TabsContent value="timeline" className="min-h-0 overflow-auto p-4">
-          <ol className="space-y-3">
-            {detail.timeline.map((item) => (
-              <li key={item.label} className="flex gap-3">
-                <span
-                  className={cn(
-                    "mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-md border",
-                    item.state === "done" &&
-                      "border-emerald-200 bg-emerald-50 text-emerald-700",
-                    item.state === "current" &&
-                      "border-sky-200 bg-sky-50 text-sky-700",
-                    item.state === "queued" && "bg-muted text-muted-foreground",
-                  )}
-                >
-                  <TimelineIcon state={item.state} />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{item.label}</p>
-                  <p className="text-xs text-muted-foreground">{item.time}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
+        <TabsContent value="timeline" className="min-h-0 overflow-auto">
+          <ProjectTimelinePanel detail={detail} />
         </TabsContent>
 
         <TabsContent value="git" className="min-h-0 overflow-auto">
